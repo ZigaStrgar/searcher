@@ -2,8 +2,6 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
-// TODO Vmesna tabela za beleženje searchov
-// TODO Prodaja, najem, ...
 // TODO Priprava array-a za variacije
 // TODO Bombončki (balkon, ...)
 // TODO Caching? (ni nujno)
@@ -38,23 +36,16 @@ class Searcher extends Str
         'search'          => [
             'prefix' => 'cr_',
             'tables' => [
-                'region'       => [
-                    'column' => 'region',
-                ],
+                'region'       => [],
                 'city'         => [
-                    'column'     => 'city',
                     'additional' => [ 'region' => 'region' ]
                 ],
                 'district'     => [
-                    'column'     => 'district',
                     'additional' => [ 'region' => 'region', 'city' => 'city' ]
                 ],
-                'criteria'     => [
-                    'column' => 'property_type'
-                ],
                 'criteria_opt' => [
-                    'column'     => 'property_subtype',
-                    'additional' => [ 'property_type' => 'parent' ]
+                    'additional' => [ 'property_type' => 'parent' ],
+                    'breakable'  => false,
                 ]
             ]
         ],
@@ -71,7 +62,7 @@ class Searcher extends Str
             'table'   => 'searcher_logs'
         ],
         'price'           => [
-            'regex'      => '(e(u|v)r|e|€)',
+            'regex'      => '(eu|vr|e|€)',
             'validation' => [ 'e', 'evr', 'eur', '€' ],
             'column'     => 'price'
         ],
@@ -175,7 +166,7 @@ class Searcher extends Str
      */
     private function search($string)
     {
-        $this->parseString($string)->buildSql()->queryResults()->buildResults();
+        $this->parseString($string)->buildSql()->buildResults();
 
         return $this;
     }
@@ -228,14 +219,28 @@ class Searcher extends Str
                         }
                     }
                 }
-                $id = $this->getWordIdentifierReplacement($table_name, $this->searchify($part), $params);
-                if ( !empty( $id ) ) {
+                $result = $this->getWordIdentifierReplacement($table_name, $this->searchify($part), $params);
+                $column =
+                    ( strlen($result['column']) == 0 ) ? ( !isset( $properties['column'] ) ) ? $table : $properties['column'] : $result['column'];
+                if ( !empty( $result['id'] ) ) {
                     $type = ( isset( $properties['type'] ) ) ? $properties['type'] : "=";
-                    $this->insertIntoTranslated($properties['column'], $part, $id, $type);
+                    $this->insertIntoTranslated($column, $part, $result['id'], $type);
                     unset( $parts[$part] );
-                    break;
+                    if ( !isset( $properties['breakable'] ) || $properties['breakable'] == true ) {
+                        break;
+                    }
                 }
             }
+        }
+
+        foreach ( $parts as $part => $_ ) {
+            $word = $this->searchify($part);
+            if ( strlen($word) > 0 ) {
+                if ( is_null($this->selectOne("SELECT id FROM cr_keywords WHERE text = :text", [ 'text' => $part ])) ) {
+                    $this->insert("cr_keywords", [ 'text' => $word ]);
+                }
+            }
+            unset( $parts[$part] );
         }
 
         return $this;
@@ -279,6 +284,9 @@ class Searcher extends Str
      */
     private function queryResults()
     {
+        if ( count($this->translated) == 0 ) {
+            return $this;
+        }
         $query                  = "SELECT id FROM item WHERE {$this->sql} {$this->agencySql}";
         $this->results['items'] = array_map(function($item) { return $item['id']; }, $this->select($query));
 
@@ -293,7 +301,11 @@ class Searcher extends Str
     private function buildResults()
     {
         foreach ( $this->translated as $column => $properties ) {
-            $this->results['meta'][$column] = $properties['identifier'];
+            $this->results['meta'][$column]['text'] = $properties['identifier'];
+            $this->results['meta'][$column]['id']   = $properties['search'];
+            if ( $column == "price" || $column == "size_bruto" ) {
+                $this->results['meta'][$column]['type'] = $properties['type'];
+            }
         }
 
         return $this;
@@ -321,13 +333,13 @@ class Searcher extends Str
             $word = $this->modifyWord($part);
 
             $query  =
-                "SELECT * FROM cr_search WHERE search LIKE :word AND cr_table = :table {$additionalSql} ORDER BY CHAR_LENGTH(search) ASC LIMIT 1";
+                "SELECT cr_id as id, `column` FROM cr_search WHERE search LIKE :word AND cr_table = :table {$additionalSql} ORDER BY CHAR_LENGTH(search) ASC LIMIT 1";
             $result = $this->selectOne($query, array_merge([
                 'word'  => "$word",
                 'table' => $table
             ], $additional));
 
-            return $result['cr_id'];
+            return $result;
         }
     }
 
@@ -365,6 +377,12 @@ class Searcher extends Str
         return $statement->fetchAll();
     }
 
+    /**
+     * Insert's a record into a database
+     *
+     * @param       $table
+     * @param array $params
+     */
     private function insert($table, $params = [])
     {
         $fieldNames  = implode("`, `", array_keys($params));
@@ -392,13 +410,13 @@ class Searcher extends Str
         if ( preg_match('/' . $pattern . '/', $text) ) {
             $minPattern     = '/(od|min|nad) ?(\d+) ?' . $pattern . '/';
             $maxPattern     = '/(do|pod|max|,| ) ?(\d+) ?' . $pattern . '/';
-            $betweenPattern = '/(\d+) ?' . $pattern . '? ?(do| |,|in|-) ?(\d+) ?' . $pattern . '/';
+            $betweenPattern = '/(\d+) ?' . $pattern . '? ?(do|,|in|-) ?(\d+) ?' . $pattern . '/';
             $column         = ( isset( $this->config[$type]['column'] ) ) ? $this->config[$type]['column'] : $type;
             if ( preg_match($minPattern, $text, $matches) ) {
                 $this->insertIntoTranslated($column, $matches[0], $matches[2], ">");
             } else {
-                if ( preg_match($betweenPattern, $text, $matches) && in_array($matches[6], $this->config[$type]['validation']) ) {
-                    $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[5] ], 'BETWEEN');
+                if ( preg_match($betweenPattern, $text, $matches) ) {
+                    $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[4] ], 'BETWEEN');
                 } else {
                     if ( preg_match($maxPattern, $text, $matches) ) {
                         $this->insertIntoTranslated($column, $matches[0], $matches[2], '<');
@@ -473,7 +491,8 @@ class Searcher extends Str
      */
     private function removeSpecialWords($string)
     {
-        $words = array_map(function($word) {
+        $string = $this->caseSpaces($string);
+        $words  = array_map(function($word) {
             return ( strlen($word) <= 2 ) ? null : $word;
         }, explode(" ", $string));
 
@@ -489,9 +508,22 @@ class Searcher extends Str
      */
     private function specialCases($string)
     {
+        $string = $this->caseSpaces($string);
         $string = $this->caseFlats($string);
 
         return $string;
+    }
+
+    /**
+     * Removes all multiple spaces
+     *
+     * @param $string
+     *
+     * @return mixed
+     */
+    private function caseSpaces($string)
+    {
+        return preg_replace('/\s/', " ", $string);
     }
 
     /**
@@ -519,10 +551,18 @@ class Searcher extends Str
     }
 
     /**
+     * @param bool $withItems
+     *
      * @return array
      */
-    public function getResults()
+    public function getResults($withItems = false)
     {
+        if ( !$withItems ) {
+            return $this->results;
+        }
+
+        $this->queryResults();
+
         return $this->results;
     }
 }
