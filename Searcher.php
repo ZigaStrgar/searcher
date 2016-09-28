@@ -3,10 +3,10 @@ error_reporting(E_ERROR);
 require_once 'Str.php';
 
 // TODO Vmesna tabela za beleženje searchov
-// TODO Caching? (ni nujno)
-// TODO Priprava array-a za variacije
 // TODO Prodaja, najem, ...
+// TODO Priprava array-a za variacije
 // TODO Bombončki (balkon, ...)
+// TODO Caching? (ni nujno)
 
 class Searcher extends Str
 {
@@ -66,6 +66,10 @@ class Searcher extends Str
                 'photo'
             ]
         ],
+        'logging'         => [
+            'enabled' => false,
+            'table'   => 'searcher_logs'
+        ],
         'price'           => [
             'regex'      => '(e(u|v)r|e|€)',
             'validation' => [ 'e', 'evr', 'eur', '€' ],
@@ -115,7 +119,7 @@ class Searcher extends Str
     public function __construct($search, $configuration = [])
     {
         $this->config = array_merge($this->config, $configuration);
-        $this->configureDatabaseConnection()->configureAgencySql()->search($search);
+        $this->configureDatabaseConnection()->configureAgencySql()->search($search)->log($search);
     }
 
     /**
@@ -166,10 +170,35 @@ class Searcher extends Str
      * function and all functions that builds the result of the search term passed in as a first argument.
      *
      * @param $string Searching term
+     *
+     * @return $this
      */
     private function search($string)
     {
         $this->parseString($string)->buildSql()->queryResults()->buildResults();
+
+        return $this;
+    }
+
+    /**
+     * Log's the executed query for further researches
+     *
+     * @param $query
+     *
+     * @return $this
+     */
+    private function log($query)
+    {
+        if ( !$this->config['logging']['enabled'] ) {
+            return $this;
+        }
+
+        $this->insert($this->config['logging']['table'], [
+            'query'   => $query,
+            'results' => count($this->results['items'])
+        ]);
+
+        return $this;
     }
 
     /**
@@ -334,6 +363,19 @@ class Searcher extends Str
         $statement->execute();
 
         return $statement->fetchAll();
+    }
+
+    private function insert($table, $params = [])
+    {
+        $fieldNames  = implode("`, `", array_keys($params));
+        $fieldValues = ":" . implode(", :", array_keys($params));
+        $statement   = $this->db->prepare("INSERT INTO $table (`$fieldNames`) VALUES ($fieldValues);");
+
+        foreach ( $params as $key => $val ) {
+            $statement->bindValue(":$key", $val);
+        }
+
+        $statement->execute();
     }
 
     /**
