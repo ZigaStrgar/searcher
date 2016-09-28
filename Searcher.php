@@ -551,13 +551,13 @@ class Searcher extends Str
     }
 
     /**
-     * @param bool $items
+     * @param bool $withItems
      *
      * @return array
      */
-    public function getResults($items = false)
+    public function getResults($withItems = false)
     {
-        if ( !$items ) {
+        if ( !$withItems ) {
             return $this->results;
         }
 
