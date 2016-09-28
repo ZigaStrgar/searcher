@@ -2,7 +2,6 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
-// TODO Vmesna tabela za beleženje searchov
 // TODO Prodaja, najem, ...
 // TODO Priprava array-a za variacije
 // TODO Bombončki (balkon, ...)
@@ -175,7 +174,7 @@ class Searcher extends Str
      */
     private function search($string)
     {
-        $this->parseString($string)->buildSql()->queryResults()->buildResults();
+        $this->parseString($string)->buildSql()->buildResults();
 
         return $this;
     }
@@ -238,6 +237,16 @@ class Searcher extends Str
             }
         }
 
+        foreach ( $parts as $part => $_ ) {
+            $word = $this->searchify($part);
+            if ( strlen($word) > 0 ) {
+                if ( is_null($this->selectOne("SELECT id FROM cr_keywords WHERE text = :text", [ 'text' => $part ])) ) {
+                    $this->insert("cr_keywords", [ 'text' => $word ]);
+                }
+            }
+            unset( $parts[$part] );
+        }
+
         return $this;
     }
 
@@ -293,7 +302,8 @@ class Searcher extends Str
     private function buildResults()
     {
         foreach ( $this->translated as $column => $properties ) {
-            $this->results['meta'][$column] = $properties['identifier'];
+            $this->results['meta'][$column]['text'] = $properties['identifier'];
+            $this->results['meta'][$column]['id'] = $properties['search'];
         }
 
         return $this;
@@ -473,7 +483,8 @@ class Searcher extends Str
      */
     private function removeSpecialWords($string)
     {
-        $words = array_map(function($word) {
+        $string = $this->caseSpaces($string);
+        $words  = array_map(function($word) {
             return ( strlen($word) <= 2 ) ? null : $word;
         }, explode(" ", $string));
 
@@ -489,9 +500,15 @@ class Searcher extends Str
      */
     private function specialCases($string)
     {
+        $string = $this->caseSpaces($string);
         $string = $this->caseFlats($string);
 
         return $string;
+    }
+
+    private function caseSpaces($string)
+    {
+        return preg_replace('/\s/', " ", $string);
     }
 
     /**
@@ -519,10 +536,18 @@ class Searcher extends Str
     }
 
     /**
+     * @param bool $items
+     *
      * @return array
      */
-    public function getResults()
+    public function getResults($items = false)
     {
+        if ( !$items ) {
+            return $this->results;
+        }
+
+        $this->queryResults();
+
         return $this->results;
     }
 }
