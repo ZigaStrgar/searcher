@@ -2,7 +2,8 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
-// TODO Priprava array-a za variacije
+// TODO Iskanje iz cr_keywords
+// TODO Buildanje drevesa navzgor za district in tip
 // TODO Bombončki (balkon, ...)
 // TODO Caching? (ni nujno)
 
@@ -70,6 +71,43 @@ class Searcher extends Str
             'regex'      => '(kvadrat|m\^?2)',
             'validation' => [ 'kvadrat', 'm2', 'm^2' ],
             'column'     => 'size_bruto'
+        ]
+    ];
+
+    /**
+     * Variation array covering edge cases from user input
+     *
+     * @var array
+     */
+    private $variations = [
+        '1-sobno'   => [ '1 sobno', 'enosobno', 'eno sobno', 'eno-sobno' ],
+        '1,5-sobno' => [ '1.5 sobno', 'eno in pol sobno', '1.5-sobno', 'enoinpol-sobno' ],
+        '2-sobno'   => [ '2 sobno', 'dvosobno', 'dvo sobno', 'dvo-sobno', 'dvasobno', 'dva sobno', 'dva-sobno' ],
+        '2,5-sobno' => [
+            '2.5 sobno',
+            'dva in pol sobno',
+            '2.5-sobno',
+            'dvainpol-sobno',
+            'dvo in pol sobno',
+            'dvoinpol-sobno'
+        ],
+        '3-sobno'   => [ '3 sobno', 'trosobno', 'tro sobno', 'tro-sobno', 'trisobno', 'tri sobno', 'tri-sobno' ],
+        '3,5-sobno' => [
+            '3.5 sobno',
+            '3.5-sobno',
+            'tri in pol sobno',
+            'triinpol-sobno',
+            'tro in pol sobno',
+            'troinpol-sobno'
+        ],
+        '4-sobno'   => [
+            '4 sobno',
+            'stirisobno',
+            'stiri sobno',
+            'stiri-sobno',
+            'stirsobno',
+            'stir sobno',
+            'stir-sobno'
         ]
     ];
 
@@ -412,11 +450,11 @@ class Searcher extends Str
             $maxPattern     = '/(do|pod|max|,| ) ?(\d+) ?' . $pattern . '/';
             $betweenPattern = '/(\d+) ?' . $pattern . '? ?(do|,|in|-) ?(\d+) ?' . $pattern . '/';
             $column         = ( isset( $this->config[$type]['column'] ) ) ? $this->config[$type]['column'] : $type;
-            if ( preg_match($minPattern, $text, $matches) ) {
-                $this->insertIntoTranslated($column, $matches[0], $matches[2], ">");
+            if ( preg_match($betweenPattern, $text, $matches) ) {
+                $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[4] ], 'BETWEEN');
             } else {
-                if ( preg_match($betweenPattern, $text, $matches) ) {
-                    $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[4] ], 'BETWEEN');
+                if ( preg_match($minPattern, $text, $matches) ) {
+                    $this->insertIntoTranslated($column, $matches[0], $matches[2], ">");
                 } else {
                     if ( preg_match($maxPattern, $text, $matches) ) {
                         $this->insertIntoTranslated($column, $matches[0], $matches[2], '<');
@@ -509,6 +547,7 @@ class Searcher extends Str
     private function specialCases($string)
     {
         $string = $this->caseSpaces($string);
+        $string = $this->caseVariations($string);
         $string = $this->caseFlats($string);
 
         return $string;
@@ -538,6 +577,22 @@ class Searcher extends Str
         $string = preg_replace('/(<? )(sob)/', '-$2', $string); // 2.5 sobno --> 2.5-sobno
         $string = preg_replace('/(<?\d)(sob)/', '$1-$2', $string); // 2.5sobno --> 2.5-sobno
         $string = preg_replace('/\.(\d-)/', ',$1', $string);
+
+        return $string;
+    }
+
+    /**
+     * Replaces special variations with database string
+     *
+     * @param $string
+     *
+     * @return mixed
+     */
+    private function caseVariations($string)
+    {
+        foreach ( $this->variations as $key => $val ) {
+            $string = str_replace($val, $key, $string);
+        }
 
         return $string;
     }
