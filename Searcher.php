@@ -2,8 +2,7 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
-// TODO Iskanje iz cr_keywords
-// TODO Buildanje drevesa navzgor za district in tip
+// TODO nadgradi logging system
 // TODO Bombončki (balkon, ...)
 // TODO Caching? (ni nujno)
 
@@ -59,7 +58,7 @@ class Searcher extends Str
             ]
         ],
         'logging'         => [
-            'enabled' => false,
+            'enabled' => true,
             'table'   => 'searcher_logs'
         ],
         'price'           => [
@@ -204,7 +203,7 @@ class Searcher extends Str
      */
     private function search($string)
     {
-        $this->parseString($string)->buildSql()->buildResults();
+        $this->parseString($string)->checkTree()->buildSql()->buildResults();
 
         return $this;
     }
@@ -240,12 +239,14 @@ class Searcher extends Str
      */
     private function parseString($string)
     {
+        $string = $this->lower($string);
         $string = $this->specialCases($string);
 
         $string = $this->check($string, 'price');
         $string = $this->check($string, 'area');
 
         $parts = array_flip(explode(" ", $this->removeSpecialWords($string)));
+        print_r($parts);
         foreach ( $this->config['search']['tables'] as $table => $properties ) {
             $table_name = $this->config['search']['prefix'] . $table;
             $params     = [];
@@ -274,8 +275,17 @@ class Searcher extends Str
         foreach ( $parts as $part => $_ ) {
             $word = $this->searchify($part);
             if ( strlen($word) > 0 ) {
-                if ( is_null($this->selectOne("SELECT id FROM cr_keywords WHERE text = :text", [ 'text' => $part ])) ) {
+                $result = $this->selectOne("SELECT * FROM cr_keywords WHERE text = :text", [ 'text' => $part ]);
+                if ( is_null($result) ) {
                     $this->insert("cr_keywords", [ 'text' => $word ]);
+                } else if ( !empty( $result['cr_id'] ) ) {
+                    $column =
+                        ( strlen($result['column']) == 0 ) ? ( isset( $this->config['search']['tables'][$result['cr_table']]['column'] ) ) ? $this->config['search']['tables'][$result['cr_table']]['column'] : str_replace($this->config['search']['prefix'], "", $result['cr_table']) : $result['column'];
+                    $res    = $this->selectOne("SELECT text FROM cr_search WHERE cr_id = :id AND cr_table = :table", [
+                        'id'    => $result['cr_id'],
+                        'table' => $result['cr_table']
+                    ]);
+                    $this->insertIntoTranslated($column, $res['text'], $result['cr_id']);
                 }
             }
             unset( $parts[$part] );
@@ -305,7 +315,6 @@ class Searcher extends Str
                         "{$column} {$properties['type']} {$properties['search'][0]} AND {$properties['search'][1]}";
                     break;
             }
-
         }
 
         $query = implode(" AND ", $wheres);
@@ -435,6 +444,40 @@ class Searcher extends Str
     }
 
     /**
+     * Check's the tree for property type and location information
+     *
+     * @return $this
+     */
+    private function checkTree()
+    {
+        foreach ( $this->config['search']['tables'] as $table => $properties ) {
+            $column = ( isset( $properties['column'] ) ) ? $properties['column'] : $table;
+            if ( isset( $this->translated[$column] ) && isset( $properties['additional'] ) ) {
+                foreach ( $properties['additional'] as $translated => $search ) {
+                    if ( !isset( $this->translated[$translated] ) ) {
+                        $result = $this->selectOne("SELECT * FROM cr_search WHERE cr_table = :table AND cr_id = :id", [
+                            'table' => $this->config['search']['prefix'] . $table,
+                            'id'    => $this->translated[$column]['search']
+                        ]);
+                        if ( !is_null($result) ) {
+                            $table            = $translated;
+                            $result           =
+                                $this->selectOne("SELECT * FROM cr_search WHERE cr_table = :table AND cr_id = :id", [
+                                    'table' => $this->config['search']['prefix'] . $table,
+                                    'id'    => $result[$search]
+                                ]);
+                            $translatedColumn = ( strlen($result['column']) > 0 ) ? $result['column'] : $translated;
+                            $this->insertIntoTranslated($translatedColumn, $result['text'], $result['cr_id']);
+                        }
+                    }
+                }
+            }
+        }
+
+        return $this;
+    }
+
+    /**
      * Checks for matches in area and price. Very extensive to any other feature.
      *
      * @param $text Text where to search for
@@ -476,7 +519,7 @@ class Searcher extends Str
      * @param        $search        ID which is representing the Original text.
      * @param string $type          Type of operation, currently supported " = " and "BETWEEN"
      */
-    private function insertIntoTranslated($column, $identifier, $search, $type = " = ")
+    private function insertIntoTranslated($column, $identifier, $search, $type = "=")
     {
         $this->translated[$column] = [
             'identifier' => $identifier,
