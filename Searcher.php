@@ -248,7 +248,6 @@ class Searcher extends Str
         $string = $this->check($string, 'area');
 
         $parts = array_flip(explode(" ", $this->removeSpecialWords($string)));
-        print_r($parts);
         foreach ( $this->config['search']['tables'] as $table => $properties ) {
             $table_name = $this->config['search']['prefix'] . $table;
             $params     = [];
@@ -277,17 +276,14 @@ class Searcher extends Str
         foreach ( $parts as $part => $_ ) {
             $word = $this->searchify($part);
             if ( strlen($word) > 0 ) {
-                $result = $this->selectOne("SELECT * FROM cr_keywords WHERE text = :text", [ 'text' => $part ]);
-                if ( is_null($result) ) {
+                if ( is_null($this->selectOne("SELECT * FROM cr_keywords WHERE text = :text", [ 'text' => $part ])) ) {
                     $this->insert("cr_keywords", [ 'text' => $word ]);
                 } else if ( !empty( $result['cr_id'] ) ) {
+                    $result =
+                        $this->selectOne("SELECT s.text, s.column, s.cr_id, s.cr_table FROM cr_search s WHERE s.cr_id = (SELECT cr_id FROM cr_keywords WHERE text = :text) AND s.cr_table = (SELECT cr_table FROM cr_keywords WHERE text = :text)", [ 'text' => $part ]);
                     $column =
                         ( strlen($result['column']) == 0 ) ? ( isset( $this->config['search']['tables'][$result['cr_table']]['column'] ) ) ? $this->config['search']['tables'][$result['cr_table']]['column'] : str_replace($this->config['search']['prefix'], "", $result['cr_table']) : $result['column'];
-                    $res    = $this->selectOne("SELECT text FROM cr_search WHERE cr_id = :id AND cr_table = :table", [
-                        'id'    => $result['cr_id'],
-                        'table' => $result['cr_table']
-                    ]);
-                    $this->insertIntoTranslated($column, $res['text'], $result['cr_id']);
+                    $this->insertIntoTranslated($column, $result['text'], $result['cr_id']);
                 }
             }
             unset( $parts[$part] );
