@@ -2,7 +2,6 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
-// TODO nadgradi logging system
 // TODO Bombončki (balkon, ...)
 // TODO Caching? (ni nujno)
 
@@ -222,8 +221,11 @@ class Searcher extends Str
         }
 
         $this->insert($this->config['logging']['table'], [
-            'query'   => $query,
-            'results' => count($this->results['items'])
+            'query'     => $query,
+            'results'   => count($this->results['items']),
+            'client_ip' => $_SERVER['REMOTE_ADDR'],
+            'page'      => $_SERVER['REQUEST_URI'],
+            'agency_id' => ( is_numeric($this->config['agency']) ) ? (int)$this->config['agency'] : (int)$this->config['agency'][0]
         ]);
 
         return $this;
