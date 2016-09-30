@@ -2,7 +2,6 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
-// TODO Priprava array-a za variacije
 // TODO Bombončki (balkon, ...)
 // TODO Caching? (ni nujno)
 
@@ -58,7 +57,7 @@ class Searcher extends Str
             ]
         ],
         'logging'         => [
-            'enabled' => false,
+            'enabled' => true,
             'table'   => 'searcher_logs'
         ],
         'price'           => [
@@ -70,6 +69,43 @@ class Searcher extends Str
             'regex'      => '(kvadrat|m\^?2)',
             'validation' => [ 'kvadrat', 'm2', 'm^2' ],
             'column'     => 'size_bruto'
+        ]
+    ];
+
+    /**
+     * Variation array covering edge cases from user input
+     *
+     * @var array
+     */
+    private $variations = [
+        '1-sobno'   => [ '1 sobno', 'enosobno', 'eno sobno', 'eno-sobno' ],
+        '1,5-sobno' => [ '1.5 sobno', 'eno in pol sobno', '1.5-sobno', 'enoinpol-sobno' ],
+        '2-sobno'   => [ '2 sobno', 'dvosobno', 'dvo sobno', 'dvo-sobno', 'dvasobno', 'dva sobno', 'dva-sobno' ],
+        '2,5-sobno' => [
+            '2.5 sobno',
+            'dva in pol sobno',
+            '2.5-sobno',
+            'dvainpol-sobno',
+            'dvo in pol sobno',
+            'dvoinpol-sobno'
+        ],
+        '3-sobno'   => [ '3 sobno', 'trosobno', 'tro sobno', 'tro-sobno', 'trisobno', 'tri sobno', 'tri-sobno' ],
+        '3,5-sobno' => [
+            '3.5 sobno',
+            '3.5-sobno',
+            'tri in pol sobno',
+            'triinpol-sobno',
+            'tro in pol sobno',
+            'troinpol-sobno'
+        ],
+        '4-sobno'   => [
+            '4 sobno',
+            'stirisobno',
+            'stiri sobno',
+            'stiri-sobno',
+            'stirsobno',
+            'stir sobno',
+            'stir-sobno'
         ]
     ];
 
@@ -166,7 +202,7 @@ class Searcher extends Str
      */
     private function search($string)
     {
-        $this->parseString($string)->buildSql()->buildResults();
+        $this->parseString($string)->checkTree()->buildSql()->buildResults();
 
         return $this;
     }
@@ -185,8 +221,11 @@ class Searcher extends Str
         }
 
         $this->insert($this->config['logging']['table'], [
-            'query'   => $query,
-            'results' => count($this->results['items'])
+            'query'     => $query,
+            'results'   => count($this->results['items']),
+            'client_ip' => $_SERVER['REMOTE_ADDR'],
+            'page'      => $_SERVER['REQUEST_URI'],
+            'agency_id' => ( is_numeric($this->config['agency']) ) ? (int)$this->config['agency'] : (int)$this->config['agency'][0]
         ]);
 
         return $this;
@@ -202,12 +241,14 @@ class Searcher extends Str
      */
     private function parseString($string)
     {
+        $string = $this->lower($string);
         $string = $this->specialCases($string);
 
         $string = $this->check($string, 'price');
         $string = $this->check($string, 'area');
 
         $parts = array_flip(explode(" ", $this->removeSpecialWords($string)));
+        print_r($parts);
         foreach ( $this->config['search']['tables'] as $table => $properties ) {
             $table_name = $this->config['search']['prefix'] . $table;
             $params     = [];
@@ -236,8 +277,17 @@ class Searcher extends Str
         foreach ( $parts as $part => $_ ) {
             $word = $this->searchify($part);
             if ( strlen($word) > 0 ) {
-                if ( is_null($this->selectOne("SELECT id FROM cr_keywords WHERE text = :text", [ 'text' => $part ])) ) {
+                $result = $this->selectOne("SELECT * FROM cr_keywords WHERE text = :text", [ 'text' => $part ]);
+                if ( is_null($result) ) {
                     $this->insert("cr_keywords", [ 'text' => $word ]);
+                } else if ( !empty( $result['cr_id'] ) ) {
+                    $column =
+                        ( strlen($result['column']) == 0 ) ? ( isset( $this->config['search']['tables'][$result['cr_table']]['column'] ) ) ? $this->config['search']['tables'][$result['cr_table']]['column'] : str_replace($this->config['search']['prefix'], "", $result['cr_table']) : $result['column'];
+                    $res    = $this->selectOne("SELECT text FROM cr_search WHERE cr_id = :id AND cr_table = :table", [
+                        'id'    => $result['cr_id'],
+                        'table' => $result['cr_table']
+                    ]);
+                    $this->insertIntoTranslated($column, $res['text'], $result['cr_id']);
                 }
             }
             unset( $parts[$part] );
@@ -267,7 +317,6 @@ class Searcher extends Str
                         "{$column} {$properties['type']} {$properties['search'][0]} AND {$properties['search'][1]}";
                     break;
             }
-
         }
 
         $query = implode(" AND ", $wheres);
@@ -397,6 +446,40 @@ class Searcher extends Str
     }
 
     /**
+     * Check's the tree for property type and location information
+     *
+     * @return $this
+     */
+    private function checkTree()
+    {
+        foreach ( $this->config['search']['tables'] as $table => $properties ) {
+            $column = ( isset( $properties['column'] ) ) ? $properties['column'] : $table;
+            if ( isset( $this->translated[$column] ) && isset( $properties['additional'] ) ) {
+                foreach ( $properties['additional'] as $translated => $search ) {
+                    if ( !isset( $this->translated[$translated] ) ) {
+                        $result = $this->selectOne("SELECT * FROM cr_search WHERE cr_table = :table AND cr_id = :id", [
+                            'table' => $this->config['search']['prefix'] . $table,
+                            'id'    => $this->translated[$column]['search']
+                        ]);
+                        if ( !is_null($result) ) {
+                            $table            = $translated;
+                            $result           =
+                                $this->selectOne("SELECT * FROM cr_search WHERE cr_table = :table AND cr_id = :id", [
+                                    'table' => $this->config['search']['prefix'] . $table,
+                                    'id'    => $result[$search]
+                                ]);
+                            $translatedColumn = ( strlen($result['column']) > 0 ) ? $result['column'] : $translated;
+                            $this->insertIntoTranslated($translatedColumn, $result['text'], $result['cr_id']);
+                        }
+                    }
+                }
+            }
+        }
+
+        return $this;
+    }
+
+    /**
      * Checks for matches in area and price. Very extensive to any other feature.
      *
      * @param $text Text where to search for
@@ -412,11 +495,11 @@ class Searcher extends Str
             $maxPattern     = '/(do|pod|max|,| ) ?(\d+) ?' . $pattern . '/';
             $betweenPattern = '/(\d+) ?' . $pattern . '? ?(do|,|in|-) ?(\d+) ?' . $pattern . '/';
             $column         = ( isset( $this->config[$type]['column'] ) ) ? $this->config[$type]['column'] : $type;
-            if ( preg_match($minPattern, $text, $matches) ) {
-                $this->insertIntoTranslated($column, $matches[0], $matches[2], ">");
+            if ( preg_match($betweenPattern, $text, $matches) ) {
+                $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[4] ], 'BETWEEN');
             } else {
-                if ( preg_match($betweenPattern, $text, $matches) ) {
-                    $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[4] ], 'BETWEEN');
+                if ( preg_match($minPattern, $text, $matches) ) {
+                    $this->insertIntoTranslated($column, $matches[0], $matches[2], ">");
                 } else {
                     if ( preg_match($maxPattern, $text, $matches) ) {
                         $this->insertIntoTranslated($column, $matches[0], $matches[2], '<');
@@ -438,7 +521,7 @@ class Searcher extends Str
      * @param        $search        ID which is representing the Original text.
      * @param string $type          Type of operation, currently supported " = " and "BETWEEN"
      */
-    private function insertIntoTranslated($column, $identifier, $search, $type = " = ")
+    private function insertIntoTranslated($column, $identifier, $search, $type = "=")
     {
         $this->translated[$column] = [
             'identifier' => $identifier,
@@ -509,6 +592,7 @@ class Searcher extends Str
     private function specialCases($string)
     {
         $string = $this->caseSpaces($string);
+        $string = $this->caseVariations($string);
         $string = $this->caseFlats($string);
 
         return $string;
@@ -538,6 +622,22 @@ class Searcher extends Str
         $string = preg_replace('/(<? )(sob)/', '-$2', $string); // 2.5 sobno --> 2.5-sobno
         $string = preg_replace('/(<?\d)(sob)/', '$1-$2', $string); // 2.5sobno --> 2.5-sobno
         $string = preg_replace('/\.(\d-)/', ',$1', $string);
+
+        return $string;
+    }
+
+    /**
+     * Replaces special variations with database string
+     *
+     * @param $string
+     *
+     * @return mixed
+     */
+    private function caseVariations($string)
+    {
+        foreach ( $this->variations as $key => $val ) {
+            $string = str_replace($val, $key, $string);
+        }
 
         return $string;
     }
