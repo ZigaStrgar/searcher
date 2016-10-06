@@ -2,7 +2,6 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
-// TODO Bombončki (balkon, ...)
 // TODO Caching? (ni nujno)
 
 class Searcher extends Str
@@ -49,11 +48,25 @@ class Searcher extends Str
             ]
         ],
         'query'           => [
-            'prefix' => 'item',
             'tables' => [
-                '',
+                'items' => [
+                    'region',
+                    'city',
+                    'district',
+                    'zip_postal',
+                    'size_bruto',
+                    'price',
+                    'status',
+                    'offer_type',
+                    'property_type',
+                    'property_subtype',
+                ],
+                'additional',
                 'luxury',
-                'photo'
+                'connector',
+                'equipment',
+                'heating',
+                'suitability'
             ]
         ],
         'logging'         => [
@@ -300,18 +313,33 @@ class Searcher extends Str
     private function buildSql()
     {
         $wheres = [];
-        foreach ( $this->translated as $column => $properties ) {
-            switch ( $properties['type'] ) {
-                case "=":
-                case ">":
-                case "<":
-                case "LIKE":
-                    $wheres[] = "{$column} {$properties['type']} {$properties['search']}";
-                    break;
-                case "BETWEEN":
+
+        foreach ( $this->config['query']['tables'] as $table => $columns ) {
+            if ( is_numeric($table) ) {
+                $table  = "item_" . $columns;
+                $column = "id_" . $columns;
+                if ( isset( $this->translated[$columns] ) ) {
                     $wheres[] =
-                        "{$column} {$properties['type']} {$properties['search'][0]} AND {$properties['search'][1]}";
-                    break;
+                        "id IN (SELECT id_item FROM $table WHERE $column = {$this->translated[$columns]['search']})";
+                }
+            } else {
+                foreach ( $columns as $column ) {
+                    if ( isset( $this->translated[$column] ) ) {
+                        switch ( $this->translated[$column]['type'] ) {
+                            case "=":
+                            case ">":
+                            case "<":
+                            case "LIKE":
+                                $wheres[] =
+                                    "{$column} {$this->translated[$column]['type']} {$this->translated[$column]['search']}";
+                                break;
+                            case "BETWEEN":
+                                $wheres[] =
+                                    "{$column} {$this->translated[$column]['type']} {$this->translated[$column]['search'][0]} AND {$this->translated[$column]['search'][1]}";
+                                break;
+                        }
+                    }
+                }
             }
         }
 
