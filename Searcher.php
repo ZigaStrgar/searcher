@@ -2,6 +2,7 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
+// TODO Export cr_keywords into variations form and str_replace matched words
 // TODO Caching? (ni nujno)
 
 class Searcher extends Str
@@ -41,9 +42,9 @@ class Searcher extends Str
                 'district'     => [
                     'additional' => [ 'region' => 'region', 'city' => 'city' ]
                 ],
+                'zip_postal'   => [],
                 'criteria_opt' => [
-                    'additional' => [ 'property_type' => 'parent' ],
-                    'breakable'  => false,
+                    'breakable' => false,
                 ]
             ]
         ],
@@ -256,11 +257,17 @@ class Searcher extends Str
     {
         $string = $this->lower($string);
         $string = $this->specialCases($string);
+        list( $literals, $string ) = $this->literals($string);
 
         $string = $this->check($string, 'price');
         $string = $this->check($string, 'area');
 
         $parts = array_flip(explode(" ", $this->removeSpecialWords($string)));
+
+        foreach ( $literals as $literal ) {
+            $parts[$literal] = 0;
+        }
+
         foreach ( $this->config['search']['tables'] as $table => $properties ) {
             $table_name = $this->config['search']['prefix'] . $table;
             $params     = [];
@@ -515,8 +522,8 @@ class Searcher extends Str
     {
         $pattern = $this->config[$type]['regex'];
         if ( preg_match('/' . $pattern . '/', $text) ) {
-            $minPattern     = '/(od|min|nad) ?(\d+) ?' . $pattern . '/';
-            $maxPattern     = '/(do|pod|max|,| ) ?(\d+) ?' . $pattern . '/';
+            $minPattern     = '/(od|min|nad|vsaj|najmanj) ?(\d+) ?' . $pattern . '/';
+            $maxPattern     = '/(do|pod|max|najvec|,| ) ?(\d+) ?' . $pattern . '/';
             $betweenPattern = '/(\d+) ?' . $pattern . '? ?(do|,|in|-) ?(\d+) ?' . $pattern . '/';
             $column         = ( isset( $this->config[$type]['column'] ) ) ? $this->config[$type]['column'] : $type;
             if ( preg_match($betweenPattern, $text, $matches) ) {
@@ -604,6 +611,25 @@ class Searcher extends Str
         }, explode(" ", $string));
 
         return trim(implode(" ", $words));
+    }
+
+    /**
+     * Find's occurrence of literal strings in between " or ', replaces them with empty string and return them as one
+     * word
+     *
+     * @param $string
+     *
+     * @return array
+     */
+    private function literals($string)
+    {
+        preg_match_all('/(\'|")([a-z0-9 \-]*)(\'|")/', $string, $matches);
+
+        foreach ( $matches[0] as $match ) {
+            $string = str_replace($match, "", $string);
+        }
+
+        return [ $matches[2], $string ];
     }
 
     /**
