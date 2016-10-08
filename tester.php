@@ -4,7 +4,7 @@ require_once 'Searcher.php';
 
 $init1  = time();
 $query  =
-    ( isset( $_GET['query'] ) ) ? $_GET['query'] : "oddaja 3 sobno stanovanje v ljubljani mjejsto od 640 - 660€ Bežigrad od 70 - 80 kvadratov";
+    ( isset( $_GET['query'] ) ) ? $_GET['query'] : "toplarna oddaja 3 sobno stanovanje v ljubljani mjejsto od 640 - 660€ Bežigrad balkon";
 $search = new Searcher($query);
 
 echo "<pre>";
@@ -18,6 +18,6 @@ echo "$total ms";
 
 ?>
 <form action="" method="GET">
-    <input type="text" name="query" width="500">
+    <input type="text" name="query" value="<?php echo $_GET['query'] ?>" width="500">
     <input type="submit">
 </form>
