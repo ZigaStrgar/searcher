@@ -35,15 +35,15 @@ class Searcher extends Str
         'search'          => [
             'prefix' => 'cr_',
             'tables' => [
+                'criteria_opt' => [
+                    'breakable' => false,
+                ],
                 'region'       => [],
                 'city'         => [
                     'additional' => [ 'region' => 'region' ]
                 ],
                 'district'     => [
                     'additional' => [ 'region' => 'region', 'city' => 'city' ]
-                ],
-                'criteria_opt' => [
-                    'breakable' => false,
                 ],
                 'zip_postal'   => [],
             ]
@@ -160,7 +160,7 @@ class Searcher extends Str
     public function __construct($search, $configuration = [])
     {
         $this->config = array_merge($this->config, $configuration);
-        $this->configureDatabaseConnection()->configureAgencySql()->search($search)->log($search);
+        $this->configureDatabaseConnection()->configureAgencySql()->fillVariations()->search($search)->log($search);
     }
 
     /**
@@ -639,6 +639,22 @@ class Searcher extends Str
         }
 
         return [ $matches[2], $string ];
+    }
+
+    /**
+     * Fill's the variations form keywords table
+     *
+     * @return $this
+     */
+    private function fillVariations()
+    {
+        $results = $this->select("SELECT * FROM cr_keywords WHERE text LIKE '\"%\"'");
+
+        foreach ( $results as $result ) {
+            $this->variations[$result['text']] = str_replace('"', "", $result['text']);
+        }
+
+        return $this;
     }
 
     /**
