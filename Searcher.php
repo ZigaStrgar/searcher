@@ -531,12 +531,12 @@ class Searcher extends Str
     {
         $pattern = $this->config[$type]['regex'];
         if ( preg_match('/' . $pattern . '/', $text) ) {
-            $minPattern     = '/(od|min|nad|vsaj|najmanj) ?(\d+) ?' . $pattern . '/';
-            $maxPattern     = '/(do|pod|max|najvec|,| ) ?(\d+) ?' . $pattern . '/';
-            $betweenPattern = '/(\d+) ?' . $pattern . '? ?(do|,|in|-) ?(\d+) ?' . $pattern . '/';
+            $minPattern     = '/(od|min|nad|vsaj|najmanj) ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
+            $maxPattern     = '/(do|pod|max|najvec|,| ) ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
+            $betweenPattern = '/(\d+(,|\.)?\d+) ?' . $pattern . '? ?(do|,|in|-) ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
             $column         = ( isset( $this->config[$type]['column'] ) ) ? $this->config[$type]['column'] : $type;
             if ( preg_match($betweenPattern, $text, $matches) ) {
-                $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[4] ], 'BETWEEN');
+                $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[5] ], 'BETWEEN');
             } else {
                 if ( preg_match($minPattern, $text, $matches) ) {
                     $this->insertIntoTranslated($column, $matches[0], $matches[2], ">");
