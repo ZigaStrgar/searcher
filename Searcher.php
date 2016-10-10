@@ -75,7 +75,7 @@ class Searcher extends Str
             'table'   => 'searcher_logs'
         ],
         'price'           => [
-            'regex'      => '(e(u|v)r|e|€)',
+            'regex'      => '(eu|vr|e|€)',
             'validation' => [ 'e', 'evr', 'eur', '€' ],
             'column'     => 'price'
         ],
@@ -92,25 +92,62 @@ class Searcher extends Str
      * @var array
      */
     private $variations = [
-        '1-sobno'   => [ '1 sobno', 'enosobno', 'eno sobno', 'eno-sobno' ],
-        '1,5-sobno' => [ '1.5 sobno', 'eno in pol sobno', '1.5-sobno', 'enoinpol-sobno' ],
-        '2-sobno'   => [ '2 sobno', 'dvosobno', 'dvo sobno', 'dvo-sobno', 'dvasobno', 'dva sobno', 'dva-sobno' ],
+        '1-sobno'   => [ '1 sobno', 'enosobno', 'eno sobno', 'eno-sobno', '1s', '1-s' ],
+        '1,5-sobno' => [
+            '1.5 sobno',
+            'eno in pol sobno',
+            '1.5-sobno',
+            'enoinpol-sobno',
+            '1.5s',
+            '1,5s',
+            '1.5-s',
+            '1,5-s'
+        ],
+        '2-sobno'   => [
+            '2 sobno',
+            'dvosobno',
+            'dvo sobno',
+            'dvo-sobno',
+            'dvasobno',
+            'dva sobno',
+            'dva-sobno',
+            '2s',
+            '2-s'
+        ],
         '2,5-sobno' => [
             '2.5 sobno',
             'dva in pol sobno',
             '2.5-sobno',
             'dvainpol-sobno',
             'dvo in pol sobno',
-            'dvoinpol-sobno'
+            'dvoinpol-sobno',
+            '2.5s',
+            '2,5s',
+            '2.5-s',
+            '2,5-s'
         ],
-        '3-sobno'   => [ '3 sobno', 'trosobno', 'tro sobno', 'tro-sobno', 'trisobno', 'tri sobno', 'tri-sobno' ],
+        '3-sobno'   => [
+            '3 sobno',
+            'trosobno',
+            'tro sobno',
+            'tro-sobno',
+            'trisobno',
+            'tri sobno',
+            'tri-sobno',
+            '3s',
+            '3-s'
+        ],
         '3,5-sobno' => [
             '3.5 sobno',
             '3.5-sobno',
             'tri in pol sobno',
             'triinpol-sobno',
             'tro in pol sobno',
-            'troinpol-sobno'
+            'troinpol-sobno',
+            '3.5s',
+            '3,5s',
+            '3.5-s',
+            '3,5-s'
         ],
         '4-sobno'   => [
             '4 sobno',
@@ -119,7 +156,9 @@ class Searcher extends Str
             'stiri-sobno',
             'stirsobno',
             'stir sobno',
-            'stir-sobno'
+            'stir-sobno',
+            '4s',
+            '4-s'
         ]
     ];
 
