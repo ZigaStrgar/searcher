@@ -75,7 +75,7 @@ class Searcher extends Str
             'table'   => 'searcher_logs'
         ],
         'price'           => [
-            'regex'      => '(eu|vr|e|€)',
+            'regex'      => '(e(u|v)r|e|€)',
             'validation' => [ 'e', 'evr', 'eur', '€' ],
             'column'     => 'price'
         ],
@@ -256,11 +256,13 @@ class Searcher extends Str
     private function parseString($string)
     {
         $string = $this->lower($string);
-        $string = $this->specialCases($string);
-        list( $literals, $string ) = $this->literals($string);
 
         $string = $this->check($string, 'price');
         $string = $this->check($string, 'area');
+
+        $string = $this->specialCases($string);
+
+        list( $literals, $string ) = $this->literals($string);
 
         $parts = array_flip(explode(" ", $this->removeSpecialWords($string)));
 
@@ -710,6 +712,8 @@ class Searcher extends Str
      */
     private function caseVariations($string)
     {
+        $string = $this->searchify($string);
+
         foreach ( $this->variations as $key => $val ) {
             $string = str_replace($val, $key, $string);
         }
