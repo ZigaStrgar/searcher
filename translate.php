@@ -6,6 +6,11 @@ $connection = mysqli_connect('localhost', 'root', '', 'searcher');
 mysqli_query($connection, "SET NAMES UTF8;");
 mysqli_query($connection, "TRUNCATE cr_search;");
 
+mysqli_query($connection, "UPDATE cr_criteria SET text = 'offer_type' WHERE id = 1;");
+mysqli_query($connection, "UPDATE cr_criteria SET text = 'property_type' WHERE id = 2;");
+mysqli_query($connection, "UPDATE cr_criteria SET text = 'property_subtype' WHERE id = 4;");
+mysqli_query($connection, "UPDATE cr_criteria_opt SET criteria = 2 WHERE id BETWEEN 5 AND 10");
+
 $config = [
     'cr_region'       => [
         'where' => [

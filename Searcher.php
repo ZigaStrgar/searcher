@@ -42,10 +42,10 @@ class Searcher extends Str
                 'district'     => [
                     'additional' => [ 'region' => 'region', 'city' => 'city' ]
                 ],
-                'zip_postal'   => [],
                 'criteria_opt' => [
                     'breakable' => false,
-                ]
+                ],
+                'zip_postal'   => [],
             ]
         ],
         'query'           => [
@@ -275,7 +275,7 @@ class Searcher extends Str
                 if ( isset( $properties['additional'] ) ) {
                     foreach ( $properties['additional'] as $parent => $column ) {
                         if ( isset( $this->translated[$parent] ) ) {
-                            $params[$column] = $this->translated[$parent]['search'];
+                            $params[$column] = $this->translated[$parent][0]['search'];
                         }
                     }
                 }
@@ -326,24 +326,26 @@ class Searcher extends Str
                 $table  = "item_" . $columns;
                 $column = "id_" . $columns;
                 if ( isset( $this->translated[$columns] ) ) {
-                    $wheres[] =
-                        "id IN (SELECT id_item FROM $table WHERE $column = {$this->translated[$columns]['search']})";
+                    foreach ( $this->translated[$columns] as $item ) {
+                        $wheres[] = "id IN (SELECT id_item FROM $table WHERE $column = {$item['search']})";
+                    }
                 }
             } else {
                 foreach ( $columns as $column ) {
                     if ( isset( $this->translated[$column] ) ) {
-                        switch ( $this->translated[$column]['type'] ) {
-                            case "=":
-                            case ">":
-                            case "<":
-                            case "LIKE":
-                                $wheres[] =
-                                    "{$column} {$this->translated[$column]['type']} {$this->translated[$column]['search']}";
-                                break;
-                            case "BETWEEN":
-                                $wheres[] =
-                                    "{$column} {$this->translated[$column]['type']} {$this->translated[$column]['search'][0]} AND {$this->translated[$column]['search'][1]}";
-                                break;
+                        foreach ( $this->translated[$column] as $item ) {
+                            switch ( $item['type'] ) {
+                                case "=":
+                                case ">":
+                                case "<":
+                                case "LIKE":
+                                    $wheres[] = "{$column} {$item['type']} {$item['search']}";
+                                    break;
+                                case "BETWEEN":
+                                    $wheres[] =
+                                        "{$column} {$item['type']} {$item['search'][0]} AND {$item['search'][1]}";
+                                    break;
+                            }
                         }
                     }
                 }
@@ -380,11 +382,18 @@ class Searcher extends Str
      */
     private function buildResults()
     {
-        foreach ( $this->translated as $column => $properties ) {
-            $this->results['meta'][$column]['text'] = $properties['identifier'];
-            $this->results['meta'][$column]['id']   = $properties['search'];
-            if ( $column == "price" || $column == "size_bruto" ) {
-                $this->results['meta'][$column]['type'] = $properties['type'];
+        foreach ( $this->translated as $column => $values ) {
+            foreach ( $values as $properties ) {
+                if ( count($values) > 1 ) {
+                    $this->results['meta'][$column][] =
+                        [ 'text' => $properties['identifier'], 'id' => $properties['search'] ];
+                } else {
+                    $this->results['meta'][$column]['text'] = $properties['identifier'];
+                    $this->results['meta'][$column]['id']   = $properties['search'];
+                }
+                if ( $column == "price" || $column == "size_bruto" ) {
+                    $this->results['meta'][$column]['type'] = $properties['type'];
+                }
             }
         }
 
@@ -490,7 +499,7 @@ class Searcher extends Str
                     if ( !isset( $this->translated[$translated] ) ) {
                         $result = $this->selectOne("SELECT * FROM cr_search WHERE cr_table = :table AND cr_id = :id", [
                             'table' => $this->config['search']['prefix'] . $table,
-                            'id'    => $this->translated[$column]['search']
+                            'id'    => $this->translated[$column][0]['search']
                         ]);
                         if ( !is_null($result) ) {
                             $table            = $translated;
@@ -554,7 +563,7 @@ class Searcher extends Str
      */
     private function insertIntoTranslated($column, $identifier, $search, $type = "=")
     {
-        $this->translated[$column] = [
+        $this->translated[$column][] = [
             'identifier' => $identifier,
             'type'       => $type,
             'search'     => $search
