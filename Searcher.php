@@ -37,6 +37,7 @@ class Searcher extends Str
             'tables' => [
                 'criteria_opt' => [
                     'breakable' => false,
+                    'multiple'  => 'OR'
                 ],
                 'region'       => [],
                 'city'         => [
@@ -92,16 +93,12 @@ class Searcher extends Str
      * @var array
      */
     private $variations = [
-        '1-sobno'   => [ '1 sobno', 'enosobno', 'eno sobno', 'eno-sobno', '1s', '1-s' ],
+        '1-sobno'   => [ '1 sobno', 'enosobno', 'eno sobno', 'eno-sobno' ],
         '1,5-sobno' => [
             '1.5 sobno',
             'eno in pol sobno',
             '1.5-sobno',
             'enoinpol-sobno',
-            '1.5s',
-            '1,5s',
-            '1.5-s',
-            '1,5-s'
         ],
         '2-sobno'   => [
             '2 sobno',
@@ -111,8 +108,6 @@ class Searcher extends Str
             'dvasobno',
             'dva sobno',
             'dva-sobno',
-            '2s',
-            '2-s'
         ],
         '2,5-sobno' => [
             '2.5 sobno',
@@ -121,10 +116,6 @@ class Searcher extends Str
             'dvainpol-sobno',
             'dvo in pol sobno',
             'dvoinpol-sobno',
-            '2.5s',
-            '2,5s',
-            '2.5-s',
-            '2,5-s'
         ],
         '3-sobno'   => [
             '3 sobno',
@@ -134,8 +125,6 @@ class Searcher extends Str
             'trisobno',
             'tri sobno',
             'tri-sobno',
-            '3s',
-            '3-s'
         ],
         '3,5-sobno' => [
             '3.5 sobno',
@@ -144,10 +133,6 @@ class Searcher extends Str
             'triinpol-sobno',
             'tro in pol sobno',
             'troinpol-sobno',
-            '3.5s',
-            '3,5s',
-            '3.5-s',
-            '3,5-s'
         ],
         '4-sobno'   => [
             '4 sobno',
@@ -157,8 +142,6 @@ class Searcher extends Str
             'stirsobno',
             'stir sobno',
             'stir-sobno',
-            '4s',
-            '4-s'
         ]
     ];
 
@@ -324,8 +307,9 @@ class Searcher extends Str
                 $column =
                     ( strlen($result['column']) == 0 ) ? ( !isset( $properties['column'] ) ) ? $table : $properties['column'] : $result['column'];
                 if ( !empty( $result['id'] ) ) {
-                    $type = ( isset( $properties['type'] ) ) ? $properties['type'] : "=";
-                    $this->insertIntoTranslated($column, $part, $result['id'], $type);
+                    $type      = ( isset( $properties['type'] ) ) ? $properties['type'] : "=";
+                    $operation = ( isset( $properties['multiple'] ) ) ? $properties['multiple'] : "AND";
+                    $this->insertIntoTranslated($column, $part, $result['id'], $type, $operation);
                     unset( $parts[$part] );
                     if ( !isset( $properties['breakable'] ) || $properties['breakable'] == true ) {
                         break;
@@ -374,20 +358,23 @@ class Searcher extends Str
             } else {
                 foreach ( $columns as $column ) {
                     if ( isset( $this->translated[$column] ) ) {
+                        $innerWhere = [];
                         foreach ( $this->translated[$column] as $item ) {
                             switch ( $item['type'] ) {
                                 case "=":
                                 case ">":
                                 case "<":
                                 case "LIKE":
-                                    $wheres[] = "{$column} {$item['type']} {$item['search']}";
+                                    $innerWhere[] = "{$column} {$item['type']} {$item['search']}";
                                     break;
                                 case "BETWEEN":
-                                    $wheres[] =
+                                    $innerWhere[] =
                                         "{$column} {$item['type']} {$item['search'][0]} AND {$item['search'][1]}";
                                     break;
                             }
                         }
+                        $glue     = ( isset( $item['multiple'] ) ) ? $item['multiple'] : "AND";
+                        $wheres[] = "(" . implode(" {$glue} ", $innerWhere) . ")";
                     }
                 }
             }
@@ -600,14 +587,16 @@ class Searcher extends Str
      * @param        $column        Column which represents the "what column to look for in specific table"
      * @param        $identifier    Original matching text
      * @param        $search        ID which is representing the Original text.
-     * @param string $type          Type of operation, currently supported " = " and "BETWEEN"
+     * @param string $type          Type of operation, currently supported "=", "<", ">" and "BETWEEN"
+     * @param string $operation     Type of operation for
      */
-    private function insertIntoTranslated($column, $identifier, $search, $type = "=")
+    private function insertIntoTranslated($column, $identifier, $search, $type = "=", $operation = 'AND')
     {
         $this->translated[$column][] = [
             'identifier' => $identifier,
             'type'       => $type,
-            'search'     => $search
+            'search'     => $search,
+            'multiple'   => $operation
         ];
     }
 
@@ -692,7 +681,7 @@ class Searcher extends Str
         $results = $this->select("SELECT * FROM cr_keywords WHERE text LIKE '\"%\"'");
 
         foreach ( $results as $result ) {
-            $this->variations[$result['text']] = str_replace('"', "", $result['text']);
+            $this->variations[$result['text']] = str_replace('"', '', $result['text']);
         }
 
         return $this;
