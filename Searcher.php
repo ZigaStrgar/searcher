@@ -276,6 +276,77 @@ class Searcher extends Str
      */
     private function parseString($string)
     {
+        $words = $this->setupWords($string);
+
+        $search = $this->config['search'];
+        foreach ( $search['tables'] as $table => $properties ) {
+            $table_name = $search['prefix'] . $table;
+            foreach ( $words as $word => $_ ) {
+                $params = $this->prepareParentalData($properties);
+                $result = $this->getWordIdentifierReplacement($table_name, $word, $params);
+                if ( !empty( $result['id'] ) ) {
+                    list( $column, $type, $operation ) = $this->prepareConfigData($properties, $result, $table);
+                    $this->insertIntoTranslated($column, $word, $result['id'], $type, $operation);
+                    unset( $words[$word] );
+                    if ( !isset( $properties['breakable'] ) || $properties['breakable'] == true ) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        $this->leftOvers($words);
+
+        return $this;
+    }
+
+    /**
+     * Process the words left unmatched in cr_search.
+     *
+     * @param $words
+     *
+     * @return $this
+     */
+    private function leftOvers($words)
+    {
+        $search = $this->config['search'];
+        foreach ( $words as $word => $_ ) {
+            if ( strlen($word) > 0 ) {
+                $result = $this->selectOne("SELECT * FROM cr_keywords WHERE text = :text OR text = :quoted", [
+                    'text'   => $word,
+                    'quoted' => '"' . $word . '"'
+                ]);
+                if ( is_null($result) ) {
+                    $this->insert("cr_keywords", [ 'text' => $word ]);
+                } else {
+                    $result =
+                        $this->selectOne("SELECT s.text, s.column, s.cr_id, s.cr_table FROM cr_search s WHERE s.cr_id = :id AND s.cr_table = :table", [
+                            'id'    => $result['cr_id'],
+                            'table' => $result['cr_table']
+                        ]);
+                    if ( !empty( $result['text'] ) ) {
+                        $table_name = str_replace($search['prefix'], "", $result['cr_table']);
+                        list( $column, $type, $operation ) =
+                            $this->prepareConfigData($search['tables'][$table_name], $result, $table_name);
+                        $this->insertIntoTranslated($column, $result['text'], $result['cr_id'], $type, $operation);
+                    }
+                }
+            }
+            unset( $words[$word] );
+        }
+
+        return $this;
+    }
+
+    /**
+     * Just bunch of things to do before actual search
+     *
+     * @param $string
+     *
+     * @return array
+     */
+    private function setupWords($string)
+    {
         $string = $this->lower($string);
 
         $string = $this->check($string, 'price');
@@ -285,67 +356,94 @@ class Searcher extends Str
 
         list( $literals, $string ) = $this->literals($string);
 
-        $parts = array_flip(explode(" ", $this->removeSpecialWords($string)));
+        $string = $this->removeSpecialWords($string);
+        $string = $this->searchify($string);
+
+        $words = array_flip(explode(" ", $string));
 
         foreach ( $literals as $literal ) {
-            $parts[$literal] = 0;
+            $words[$literal] = 0;
         }
 
-        foreach ( $this->config['search']['tables'] as $table => $properties ) {
-            $table_name = $this->config['search']['prefix'] . $table;
-            $params     = [];
-            foreach ( $parts as $part => $_ ) {
-                if ( isset( $properties['additional'] ) ) {
-                    foreach ( $properties['additional'] as $parent => $column ) {
-                        if ( isset( $this->translated[$parent] ) ) {
-                            $params[$column] = $this->translated[$parent][0]['search'];
-                        }
-                    }
-                }
-                $result = $this->getWordIdentifierReplacement($table_name, $this->searchify($part), $params);
-                $column =
-                    ( strlen($result['column']) == 0 ) ? ( !isset( $properties['column'] ) ) ? $table : $properties['column'] : $result['column'];
-                if ( !empty( $result['id'] ) ) {
-                    $type      = ( isset( $properties['type'] ) ) ? $properties['type'] : "=";
-                    $operation = ( isset( $properties['multiple'] ) ) ? $properties['multiple'] : "AND";
-                    $this->insertIntoTranslated($column, $part, $result['id'], $type, $operation);
-                    unset( $parts[$part] );
-                    if ( !isset( $properties['breakable'] ) || $properties['breakable'] == true ) {
-                        break;
-                    }
+        return $words;
+    }
+
+    /**
+     * Prepares column, type and operation for correct binding and building
+     *
+     * @param $properties
+     * @param $result
+     * @param $table_name
+     *
+     * @return array
+     */
+    private function prepareConfigData($properties, $result, $table_name)
+    {
+        $column    = $this->prepareColumnName($properties, $result, $table_name);
+        $type      = $this->prepareType($properties);
+        $operation = $this->prepareOperation($properties);
+
+        return [ $column, $type, $operation ];
+    }
+
+    /**
+     * Prepares a column name from given information
+     *
+     * @param $properties
+     * @param $result
+     * @param $table_name
+     *
+     * @return mixed
+     */
+    private function prepareColumnName($properties, $result, $table_name)
+    {
+        return ( strlen($result['column']) == 0 ) ? ( !isset( $properties['column'] ) ) ? $table_name : $properties['column'] : $result['column'];
+    }
+
+    /**
+     * Prepares a type from given information
+     *
+     * @param $properties
+     *
+     * @return string
+     */
+    private function prepareType($properties)
+    {
+        return ( isset( $properties['type'] ) ) ? $properties['type'] : "=";
+    }
+
+    /**
+     * Prepares the operation type from given information
+     *
+     * @param $properties
+     *
+     * @return string
+     */
+    private function prepareOperation($properties)
+    {
+        return ( isset( $properties['multiple'] ) ) ? $properties['multiple'] : "AND";
+    }
+
+    /**
+     * Prepares the parental parameters for more accurate location search
+     *
+     * @param $properties
+     *
+     * @return array
+     */
+    private function prepareParentalData($properties)
+    {
+        $params = [];
+
+        if ( isset( $properties['additional'] ) ) {
+            foreach ( $properties['additional'] as $parent_table => $table_column ) {
+                if ( isset( $this->translated[$parent_table] ) ) {
+                    $params[$table_column] = $this->translated[$parent_table][0]['search'];
                 }
             }
         }
 
-        foreach ( $parts as $part => $_ ) {
-            $word = $this->searchify($part);
-            if ( strlen($word) > 0 ) {
-                if ( is_null($this->selectOne("SELECT * FROM cr_keywords WHERE text = :text OR text = :quoted", [
-                    'text'   => $part,
-                    'quoted' => '"' . $part . '"'
-                ])) ) {
-                    $this->insert("cr_keywords", [ 'text' => $word ]);
-                } else {
-                    $result =
-                        $this->selectOne("SELECT s.text, s.column, s.cr_id, s.cr_table FROM cr_search s WHERE s.cr_id = (SELECT cr_id FROM cr_keywords WHERE text = :text OR text = :quoted LIMIT 1) AND s.cr_table = (SELECT cr_table FROM cr_keywords WHERE text = :text OR text = :quoted LIMIT 1)", [
-                            'text'   => $part,
-                            'quoted' => '"' . $part . '"'
-                        ]);
-                    $column =
-                        ( strlen($result['column']) == 0 ) ? ( isset( $this->config['search']['tables'][$result['cr_table']]['column'] ) ) ? $this->config['search']['tables'][$result['cr_table']]['column'] : str_replace($this->config['search']['prefix'], "", $result['cr_table']) : $result['column'];
-
-                    $operation =
-                        isset( $this->config['search']['tables'][str_replace($this->config['search']['prefix'], "", $result['cr_table'])]['multiple'] ) ? $this->config['search']['tables'][str_replace($this->config['search']['prefix'], "", $result['cr_table'])]['multiple'] : "AND";
-
-                    if ( !empty( $result['text'] ) ) {
-                        $this->insertIntoTranslated($column, $result['text'], $result['cr_id'], '=', $operation);
-                    }
-                }
-            }
-            unset( $parts[$part] );
-        }
-
-        return $this;
+        return $params;
     }
 
     /**
