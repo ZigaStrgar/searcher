@@ -2,7 +2,6 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
-// TODO Export cr_keywords into variations form and str_replace matched words
 // TODO Caching? (ni nujno)
 
 class Searcher extends Str
@@ -321,14 +320,26 @@ class Searcher extends Str
         foreach ( $parts as $part => $_ ) {
             $word = $this->searchify($part);
             if ( strlen($word) > 0 ) {
-                if ( is_null($this->selectOne("SELECT * FROM cr_keywords WHERE text = :text", [ 'text' => $part ])) ) {
+                if ( is_null($this->selectOne("SELECT * FROM cr_keywords WHERE text = :text OR text = :quoted", [
+                    'text'   => $part,
+                    'quoted' => '"' . $part . '"'
+                ])) ) {
                     $this->insert("cr_keywords", [ 'text' => $word ]);
                 } else {
                     $result =
-                        $this->selectOne("SELECT s.text, s.column, s.cr_id, s.cr_table FROM cr_search s WHERE s.cr_id = (SELECT cr_id FROM cr_keywords WHERE text = :text) AND s.cr_table = (SELECT cr_table FROM cr_keywords WHERE text = :text)", [ 'text' => $part ]);
+                        $this->selectOne("SELECT s.text, s.column, s.cr_id, s.cr_table FROM cr_search s WHERE s.cr_id = (SELECT cr_id FROM cr_keywords WHERE text = :text OR text = :quoted LIMIT 1) AND s.cr_table = (SELECT cr_table FROM cr_keywords WHERE text = :text OR text = :quoted LIMIT 1)", [
+                            'text'   => $part,
+                            'quoted' => '"' . $part . '"'
+                        ]);
                     $column =
                         ( strlen($result['column']) == 0 ) ? ( isset( $this->config['search']['tables'][$result['cr_table']]['column'] ) ) ? $this->config['search']['tables'][$result['cr_table']]['column'] : str_replace($this->config['search']['prefix'], "", $result['cr_table']) : $result['column'];
-                    $this->insertIntoTranslated($column, $result['text'], $result['cr_id']);
+
+                    $operation =
+                        isset( $this->config['search']['tables'][str_replace($this->config['search']['prefix'], "", $result['cr_table'])]['multiple'] ) ? $this->config['search']['tables'][str_replace($this->config['search']['prefix'], "", $result['cr_table'])]['multiple'] : "AND";
+
+                    if ( !empty( $result['text'] ) ) {
+                        $this->insertIntoTranslated($column, $result['text'], $result['cr_id'], '=', $operation);
+                    }
                 }
             }
             unset( $parts[$part] );
@@ -372,8 +383,8 @@ class Searcher extends Str
                                         "{$column} {$item['type']} {$item['search'][0]} AND {$item['search'][1]}";
                                     break;
                             }
+                            $glue = ( isset( $item['multiple'] ) ) ? $item['multiple'] : "AND";
                         }
-                        $glue     = ( isset( $item['multiple'] ) ) ? $item['multiple'] : "AND";
                         $wheres[] = "(" . implode(" {$glue} ", $innerWhere) . ")";
                     }
                 }
