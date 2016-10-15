@@ -67,7 +67,6 @@ $words2 = mysqli_query($connection, "SELECT * FROM cr_search");
         <div class="form-group">
             <label for="">Zgrešena beseda</label>
             <input type="text" name="typo" class="form-control">
-            <span class="help-block">Za besedo, ki vsebuje presledke uporabi " Primer: "Novo mesto"</span>
         </div>
     </div>
     <div class="col-xs-12 col-sm-6">
