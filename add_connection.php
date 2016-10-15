@@ -5,7 +5,7 @@ require 'Str.php';
 $connection = mysqli_connect('localhost', 'root', '', 'searcher');
 mysqli_query($connection, "SET NAMES UTF8;");
 
-$typo       = $_POST['typo'];
+$typo       = trim($_POST['typo']);
 $identifier = $_POST['identifier'];
 
 $result = mysqli_query($connection, "SELECT * FROM cr_search WHERE id = " . $identifier);
