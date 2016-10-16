@@ -91,58 +91,7 @@ class Searcher extends Str
      *
      * @var array
      */
-    private $variations = [
-        '1-sobno'   => [ '1 sobno', 'enosobno', 'eno sobno', 'eno-sobno' ],
-        '1,5-sobno' => [
-            '1.5 sobno',
-            'eno in pol sobno',
-            '1.5-sobno',
-            'enoinpol-sobno',
-        ],
-        '2-sobno'   => [
-            '2 sobno',
-            'dvosobno',
-            'dvo sobno',
-            'dvo-sobno',
-            'dvasobno',
-            'dva sobno',
-            'dva-sobno',
-        ],
-        '2,5-sobno' => [
-            '2.5 sobno',
-            'dva in pol sobno',
-            '2.5-sobno',
-            'dvainpol-sobno',
-            'dvo in pol sobno',
-            'dvoinpol-sobno',
-        ],
-        '3-sobno'   => [
-            '3 sobno',
-            'trosobno',
-            'tro sobno',
-            'tro-sobno',
-            'trisobno',
-            'tri sobno',
-            'tri-sobno',
-        ],
-        '3,5-sobno' => [
-            '3.5 sobno',
-            '3.5-sobno',
-            'tri in pol sobno',
-            'triinpol-sobno',
-            'tro in pol sobno',
-            'troinpol-sobno',
-        ],
-        '4-sobno'   => [
-            '4 sobno',
-            'stirisobno',
-            'stiri sobno',
-            'stiri-sobno',
-            'stirsobno',
-            'stir sobno',
-            'stir-sobno',
-        ]
-    ];
+    private $variations = [];
 
     /**
      * This must be included after every SQL query in searching for results. It limits the results by agency ID.
@@ -353,7 +302,7 @@ class Searcher extends Str
         $string = $this->check($string, 'area');
 
         $string = $this->specialCases($string);
-
+        
         list( $literals, $string ) = $this->literals($string);
 
         $string = $this->removeSpecialWords($string);
@@ -833,7 +782,7 @@ class Searcher extends Str
      */
     private function caseFlats($string)
     {
-        $string = preg_replace('/(<? )(sob)/', '-$2', $string); // 2.5 sobno --> 2.5-sobno
+        $string = preg_replace('/(<?\d)(<? )(sob)/', '-$2', $string); // 2.5 sobno --> 2.5-sobno
         $string = preg_replace('/(<?\d)(sob)/', '$1-$2', $string); // 2.5sobno --> 2.5-sobno
         $string = preg_replace('/\.(\d-)/', ',$1', $string);
 

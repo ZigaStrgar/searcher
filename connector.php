@@ -6,7 +6,7 @@ $connection = mysqli_connect('localhost', 'root', '', 'searcher');
 mysqli_query($connection, "SET NAMES UTF8;");
 
 $misses =
-    mysqli_query($connection, "SELECT * FROM cr_keywords WHERE cr_table IS NULL AND cr_id IS NULL ORDER BY id DESC LIMIT 10");
+    mysqli_query($connection, "SELECT * FROM cr_keywords WHERE cr_table IS NULL AND cr_id IS NULL ORDER BY id DESC");
 $words  = mysqli_query($connection, "SELECT * FROM cr_search");
 $words2 = mysqli_query($connection, "SELECT * FROM cr_search");
 
