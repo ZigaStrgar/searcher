@@ -259,7 +259,7 @@ class Searcher extends Str
         $search = $this->config['search'];
         foreach ( $words as $word => $_ ) {
             if ( strlen($word) > 0 ) {
-                $result = $this->selectOne("SELECT * FROM cr_keywords WHERE text = :text OR text = :quoted", [
+                $result = $this->selectOne("SELECT * FROM cr_keywords WHERE (text = :text OR text = :quoted) AND active = 1", [
                     'text'   => $word,
                     'quoted' => '"' . $word . '"'
                 ]);
@@ -734,7 +734,7 @@ class Searcher extends Str
      */
     private function fillVariations()
     {
-        $results = $this->select("SELECT * FROM cr_keywords WHERE text LIKE '\"%\"'");
+        $results = $this->select("SELECT * FROM cr_keywords WHERE text LIKE '\"%\"' AND active = 1");
 
         foreach ( $results as $result ) {
             $this->variations[$result['text']] = str_replace('"', '', $result['text']);
