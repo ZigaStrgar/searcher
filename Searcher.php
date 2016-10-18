@@ -2,8 +2,6 @@
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
-// TODO Caching? (ni nujno)
-
 class Searcher extends Str
 {
     /**
