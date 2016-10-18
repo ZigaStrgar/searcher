@@ -302,7 +302,7 @@ class Searcher extends Str
         $string = $this->check($string, 'area');
 
         $string = $this->specialCases($string);
-        
+
         list( $literals, $string ) = $this->literals($string);
 
         $string = $this->removeSpecialWords($string);
@@ -782,7 +782,7 @@ class Searcher extends Str
      */
     private function caseFlats($string)
     {
-        $string = preg_replace('/(<?\d)(<? )(sob)/', '-$2', $string); // 2.5 sobno --> 2.5-sobno
+        $string = preg_replace('/(<?\d)(<? )(sob)/', '$1-$3', $string); // 2.5 sobno --> 2.5-sobno
         $string = preg_replace('/(<?\d)(sob)/', '$1-$2', $string); // 2.5sobno --> 2.5-sobno
         $string = preg_replace('/\.(\d-)/', ',$1', $string);
 
