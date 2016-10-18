@@ -259,10 +259,11 @@ class Searcher extends Str
         $search = $this->config['search'];
         foreach ( $words as $word => $_ ) {
             if ( strlen($word) > 0 ) {
-                $result = $this->selectOne("SELECT * FROM cr_keywords WHERE (text = :text OR text = :quoted) AND active = 1", [
-                    'text'   => $word,
-                    'quoted' => '"' . $word . '"'
-                ]);
+                $result =
+                    $this->selectOne("SELECT * FROM cr_keywords WHERE (text = :text OR text = :quoted) AND active = 1", [
+                        'text'   => $word,
+                        'quoted' => '"' . $word . '"'
+                    ]);
                 if ( is_null($result) ) {
                     $this->insert("cr_keywords", [ 'text' => $word ]);
                 } else {
@@ -755,6 +756,7 @@ class Searcher extends Str
         $string = $this->caseSpaces($string);
         $string = $this->caseVariations($string);
         $string = $this->caseFlats($string);
+        $string = $this->caseCommasInWords($string);
 
         return $string;
     }
@@ -803,6 +805,18 @@ class Searcher extends Str
         }
 
         return $string;
+    }
+
+    /**
+     * It splits words with spaces instead of commas
+     *
+     * @param $string
+     *
+     * @return mixed
+     */
+    private function caseCommasInWords($string)
+    {
+        return preg_replace('/(\w),(\w)/', '$1 $2', $string);
     }
 
     /**
