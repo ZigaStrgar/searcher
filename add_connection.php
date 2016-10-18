@@ -1,6 +1,7 @@
 <?php
 
 require 'Str.php';
+include_once 'database.php';
 
 function searchify($string)
 {
@@ -10,9 +11,6 @@ function searchify($string)
     return $str->lower($ascii);
 }
 
-$connection = mysqli_connect('localhost', 'root', '', 'searcher');
-mysqli_query($connection, "SET NAMES UTF8;");
-
 $typo       = trim($_POST['typo']);
 $identifier = $_POST['identifier'];
 
@@ -20,21 +18,31 @@ $result = mysqli_query($connection, "SELECT * FROM cr_search WHERE id = " . $ide
 $idData = mysqli_fetch_assoc($result);
 
 if ( $_POST['type'] == 'existing' ) {
+    $id_array = [];
+    foreach ( $typo as $id ) {
+        $id_array[] = (int)$id;
+    }
+    $ids    = implode(', ', $id_array);
     $column = ( strlen($idData['column']) > 0 ) ? "'" . $idData['column'] . "'" : 'NULL';
     $query  =
-        "UPDATE cr_keywords SET cr_table = '{$idData['cr_table']}', cr_id = {$idData['cr_id']}, `column` = $column WHERE id = " . $typo;
+        "UPDATE cr_keywords SET cr_table = '{$idData['cr_table']}', cr_id = {$idData['cr_id']}, `column` = $column id IN ($ids)";
     if ( mysqli_query($connection, $query) ) {
+        $_SESSION['searcher_alert'] = "success|Povezava <strong>uspešno</strong> spremenjena!";
         header('Location: index.php');
     } else {
-        echo "Napaka pri povezovanju";
+        $_SESSION['searcher_alert'] = "danger|Povezava <strong>neuspešno</strong> spremenjena!";
+        header('Location: index.php');
     }
 } else {
     $column = ( strlen($idData['column']) > 0 ) ? "'" . $idData['column'] . "'" : 'NULL';
     $typo   = searchify($typo);
     $typo   = ( strpos($typo, " ") !== false || strlen($typo) < 3 ) ? '"' . $typo . '"' : $typo;
     if ( mysqli_query($connection, "INSERT INTO cr_keywords (text, cr_id, cr_table, `column`) VALUES ('{$typo}', {$idData['cr_id']}, '{$idData['cr_table']}', $column);") ) {
+        $_SESSION['searcher_alert'] = "success|Zapisi <strong>uspešno</strong> dodan!";
         header('Location: index.php');
     } else {
-        echo "Napaka pri ustvarjanju nove povezave";
+        $_SESSION['searcher_alert'] =
+            "danger|Zapis <strong>neuspešno</strong> dodan! Po vsej verjetnosti že <strong>obstaja</strong>!";
+        header('Location: index.php');
     }
 }
