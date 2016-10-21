@@ -66,6 +66,7 @@ class Searcher extends Str
                     'offer_type',
                     'property_type',
                     'property_subtype',
+                    'floor'
                 ],
                 'additional',
                 'luxury',
