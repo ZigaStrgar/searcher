@@ -11,7 +11,7 @@ function searchify($string)
     return $str->lower($ascii);
 }
 
-$typo       = trim($_POST['typo']);
+$typo       = $_POST['typo'];
 $identifier = $_POST['identifier'];
 
 $result = mysqli_query($connection, "SELECT * FROM cr_search WHERE id = " . $identifier);
@@ -25,7 +25,7 @@ if ( $_POST['type'] == 'existing' ) {
     $ids    = implode(', ', $id_array);
     $column = ( strlen($idData['column']) > 0 ) ? "'" . $idData['column'] . "'" : 'NULL';
     $query  =
-        "UPDATE cr_keywords SET cr_table = '{$idData['cr_table']}', cr_id = {$idData['cr_id']}, `column` = $column id IN ($ids)";
+        "UPDATE cr_keywords SET cr_table = '{$idData['cr_table']}', cr_id = {$idData['cr_id']}, `column` = $column WHERE id IN ($ids)";
     if ( mysqli_query($connection, $query) ) {
         $_SESSION['searcher_alert'] = "success|Povezava <strong>uspešno</strong> spremenjena!";
         header('Location: index.php');
@@ -35,7 +35,7 @@ if ( $_POST['type'] == 'existing' ) {
     }
 } else {
     $column = ( strlen($idData['column']) > 0 ) ? "'" . $idData['column'] . "'" : 'NULL';
-    $typo   = searchify($typo);
+    $typo   = searchify(trim($typo));
     $typo   = ( strpos($typo, " ") !== false || strlen($typo) < 3 ) ? '"' . $typo . '"' : $typo;
     if ( mysqli_query($connection, "INSERT INTO cr_keywords (text, cr_id, cr_table, `column`) VALUES ('{$typo}', {$idData['cr_id']}, '{$idData['cr_table']}', $column);") ) {
         $_SESSION['searcher_alert'] = "success|Zapisi <strong>uspešno</strong> dodan!";
