@@ -36,12 +36,19 @@ class Searcher extends Str
                     'breakable' => false,
                     'multiple'  => 'OR'
                 ],
-                'region'       => [],
+                'region'       => [
+                    'multiple'  => 'OR',
+                    'breakable' => false,
+                ],
                 'city'         => [
-                    'additional' => [ 'region' => 'region' ]
+                    'additional' => [ 'region' => 'region' ],
+                    'multiple'   => 'OR',
+                    'breakable'  => false,
                 ],
                 'district'     => [
-                    'additional' => [ 'region' => 'region', 'city' => 'city' ]
+                    'additional' => [ 'region' => 'region', 'city' => 'city' ],
+                    'multiple'   => 'OR',
+                    'breakable'  => false,
                 ],
                 'zip_postal'   => [],
             ]
