@@ -70,11 +70,12 @@ foreach ( $config as $table => $properties ) {
 
     $insert = [];
     while ( $row = mysqli_fetch_assoc($result) ) {
+        $text   = str_replace("obcina ", "", searchify($row['text']));
         $insert = [
             'cr_table' => $table,
             'cr_id'    => $row[( isset( $properties['id'] ) ) ? $properties['id'] : "id"],
             'text'     => $row['text'],
-            'search'   => searchify($row['text'])
+            'search'   => $text
         ];
 
         if ( isset( $properties['additional'] ) ) {
