@@ -81,7 +81,7 @@ class Searcher extends Str
             'table'   => 'searcher_logs'
         ],
         'price'           => [
-            'regex'      => '(eu|vr|e|€)',
+            'regex'      => '(e(u|v)r|e|€)',
             'validation' => [ 'e', 'evr', 'eur', '€' ],
             'column'     => 'price'
         ],
@@ -211,11 +211,12 @@ class Searcher extends Str
         }
 
         $this->insert($this->config['logging']['table'], [
-            'query'     => $query,
-            'results'   => count($this->results['items']),
-            'client_ip' => $_SERVER['REMOTE_ADDR'],
-            'page'      => $_SERVER['REQUEST_URI'],
-            'agency_id' => ( is_numeric($this->config['agency']) ) ? (int)$this->config['agency'] : (int)$this->config['agency'][0]
+            'query'        => $query,
+            'results'      => count($this->results['items']),
+            'client_ip'    => $_SERVER['REMOTE_ADDR'],
+            'client_agent' => $_SERVER['HTTP_USER_AGENT'],
+            'page'         => $_SERVER['REQUEST_URI'],
+            'agency_id'    => ( is_numeric($this->config['agency']) ) ? (int)$this->config['agency'] : (int)$this->config['agency'][0]
         ]);
 
         return $this;
@@ -625,11 +626,11 @@ class Searcher extends Str
         $pattern = $this->config[$type]['regex'];
         if ( preg_match('/' . $pattern . '/', $text) ) {
             $minPattern     = '/(od|min|nad|vsaj|najmanj) ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
-            $maxPattern     = '/(do|pod|max|najvec|,| ) ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
+            $maxPattern     = '/(do|pod|max|najvec|,| )? ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
             $betweenPattern = '/(\d+(,|\.)?\d+) ?' . $pattern . '? ?(do|,|in|-) ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
             $column         = ( isset( $this->config[$type]['column'] ) ) ? $this->config[$type]['column'] : $type;
             if ( preg_match($betweenPattern, $text, $matches) ) {
-                $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[5] ], 'BETWEEN');
+                $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[6] ], 'BETWEEN');
             } else {
                 if ( preg_match($minPattern, $text, $matches) ) {
                     $this->insertIntoTranslated($column, $matches[0], $matches[2], ">");
