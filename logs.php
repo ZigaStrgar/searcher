@@ -2,9 +2,11 @@
     <h2 class="page-header">Pregled zgodovine iskanj</h2>
 <?php if ( !isset( $_GET['advanced'] ) ) { ?>
     <a href="?advanced" class="btn btn-primary">Razširjen pogled</a>
-    <br>
-    <br>
+<?php } else { ?>
+    <a href="logs.php" class="btn btn-primary">Osnovni pogled</a>
 <?php } ?>
+    <br>
+    <br>
     <table class="table table-bordered table-responsive col-xs-12">
         <tr>
             <th>Iskalni niz</th>
@@ -15,7 +17,7 @@
             <?php } ?>
         </tr>
         <?php
-        $result = mysqli_query($connection, "SELECT * FROM searcher_logs;");
+        $result = mysqli_query($connection, "SELECT * FROM searcher_logs ORDER BY id DESC;");
         while ( $log = mysqli_fetch_assoc($result) ) {
             ?>
             <tr>
