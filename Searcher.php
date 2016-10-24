@@ -37,13 +37,18 @@ class Searcher extends Str
                     'multiple'  => 'OR'
                 ],
                 'region'       => [
-                    'breakable' => true
+                    'multiple'  => 'OR',
+                    'breakable' => false,
                 ],
                 'city'         => [
                     'additional' => [ 'region' => 'region' ],
+                    'multiple'   => 'OR',
+                    'breakable'  => false,
                 ],
                 'district'     => [
                     'additional' => [ 'region' => 'region', 'city' => 'city' ],
+                    'multiple'   => 'OR',
+                    'breakable'  => false,
                 ],
                 'zip_postal'   => [],
             ]
@@ -76,7 +81,7 @@ class Searcher extends Str
             'table'   => 'searcher_logs'
         ],
         'price'           => [
-            'regex'      => '(e(u|v)r|e|€)',
+            'regex'      => '(eu|vr|e|€)',
             'validation' => [ 'e', 'evr', 'eur', '€' ],
             'column'     => 'price'
         ],
@@ -206,12 +211,11 @@ class Searcher extends Str
         }
 
         $this->insert($this->config['logging']['table'], [
-            'query'        => $query,
-            'results'      => count($this->results['items']),
-            'client_ip'    => $_SERVER['REMOTE_ADDR'],
-            'client_agent' => $_SERVER['HTTP_USER_AGENT'],
-            'page'         => $_SERVER['REQUEST_URI'],
-            'agency_id'    => ( is_numeric($this->config['agency']) ) ? (int)$this->config['agency'] : (int)$this->config['agency'][0]
+            'query'     => $query,
+            'results'   => count($this->results['items']),
+            'client_ip' => $_SERVER['REMOTE_ADDR'],
+            'page'      => $_SERVER['REQUEST_URI'],
+            'agency_id' => ( is_numeric($this->config['agency']) ) ? (int)$this->config['agency'] : (int)$this->config['agency'][0]
         ]);
 
         return $this;
@@ -280,9 +284,6 @@ class Searcher extends Str
                         $table_name = str_replace($search['prefix'], "", $result['cr_table']);
                         list( $column, $type, $operation ) =
                             $this->prepareConfigData($search['tables'][$table_name], $result, $table_name);
-                        if ( isset( $this->translated[$column] ) && ( ( isset( $search['tables'][$table_name]['breakable'] ) && $search['tables'][$table_name]['breakable'] == true ) || ( !( isset( $search['tables'][$table_name]['breakable'] ) ) ) ) ) {
-                            continue;
-                        }
                         $this->insertIntoTranslated($column, $result['text'], $result['cr_id'], $type, $operation);
                     }
                 }
@@ -624,11 +625,11 @@ class Searcher extends Str
         $pattern = $this->config[$type]['regex'];
         if ( preg_match('/' . $pattern . '/', $text) ) {
             $minPattern     = '/(od|min|nad|vsaj|najmanj) ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
-            $maxPattern     = '/(do|pod|max|najvec|,| )? ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
+            $maxPattern     = '/(do|pod|max|najvec|,| ) ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
             $betweenPattern = '/(\d+(,|\.)?\d+) ?' . $pattern . '? ?(do|,|in|-) ?(\d+(,|\.)?\d+) ?' . $pattern . '/';
             $column         = ( isset( $this->config[$type]['column'] ) ) ? $this->config[$type]['column'] : $type;
             if ( preg_match($betweenPattern, $text, $matches) ) {
-                $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[6] ], 'BETWEEN');
+                $this->insertIntoTranslated($column, $matches[0], [ $matches[1], $matches[5] ], 'BETWEEN');
             } else {
                 if ( preg_match($minPattern, $text, $matches) ) {
                     $this->insertIntoTranslated($column, $matches[0], $matches[2], ">");
