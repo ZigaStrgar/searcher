@@ -37,18 +37,13 @@ class Searcher extends Str
                     'multiple'  => 'OR'
                 ],
                 'region'       => [
-                    'multiple'  => 'OR',
-                    'breakable' => false,
+                    'breakable' => true
                 ],
                 'city'         => [
                     'additional' => [ 'region' => 'region' ],
-                    'multiple'   => 'OR',
-                    'breakable'  => false,
                 ],
                 'district'     => [
                     'additional' => [ 'region' => 'region', 'city' => 'city' ],
-                    'multiple'   => 'OR',
-                    'breakable'  => false,
                 ],
                 'zip_postal'   => [],
             ]
@@ -285,6 +280,9 @@ class Searcher extends Str
                         $table_name = str_replace($search['prefix'], "", $result['cr_table']);
                         list( $column, $type, $operation ) =
                             $this->prepareConfigData($search['tables'][$table_name], $result, $table_name);
+                        if ( isset( $this->translated[$column] ) && ( ( isset( $search['tables'][$table_name]['breakable'] ) && $search['tables'][$table_name]['breakable'] == true ) || ( !( isset( $search['tables'][$table_name]['breakable'] ) ) ) ) ) {
+                            continue;
+                        }
                         $this->insertIntoTranslated($column, $result['text'], $result['cr_id'], $type, $operation);
                     }
                 }
