@@ -30,15 +30,13 @@ class Searcher extends Str
         'mode_percentage' => 80,
         'agency'          => null, // Null --> Vse agencije
         'search'          => [
-            'prefix' => 'cr_',
-            'tables' => [
+            'prefix'   => 'cr_',
+            'tables'   => [
                 'criteria_opt' => [
                     'breakable' => false,
                     'multiple'  => 'OR'
                 ],
-                'region'       => [
-                    'breakable' => true
-                ],
+                'region'       => [],
                 'city'         => [
                     'additional' => [ 'region' => 'region' ],
                 ],
@@ -46,11 +44,16 @@ class Searcher extends Str
                     'additional' => [ 'region' => 'region', 'city' => 'city' ],
                 ],
                 'zip_postal'   => [],
+            ],
+            'one_word' => [
+                'item' => [
+                    'internal_ident'
+                ]
             ]
         ],
         'query'           => [
             'tables' => [
-                'items' => [
+                'item' => [
                     'region',
                     'city',
                     'district',
@@ -61,7 +64,8 @@ class Searcher extends Str
                     'offer_type',
                     'property_type',
                     'property_subtype',
-                    'floor'
+                    'floor',
+                    'internal_ident'
                 ],
                 'additional',
                 'luxury',
@@ -229,6 +233,13 @@ class Searcher extends Str
     {
         $words = $this->setupWords($string);
 
+        if ( count($words) == 1 && strpos(array_keys(words)[0], " ") === false ) {
+            $this->oneWordSearch(array_keys($words)[0]);
+            if ( count($this->translated) > 0 ) {
+                return $this;
+            }
+        }
+
         $search = $this->config['search'];
         foreach ( $search['tables'] as $table => $properties ) {
             $table_name = $search['prefix'] . $table;
@@ -247,6 +258,32 @@ class Searcher extends Str
         }
 
         $this->leftOvers($words);
+
+        return $this;
+    }
+
+    /**
+     * Looking for specific one word terms in database.
+     *
+     * @param $word
+     *
+     * @return $this
+     */
+    private function oneWordSearch($word)
+    {
+        $tables = $this->config['search']['one_word'];
+
+        foreach ( $tables as $table => $columns ) {
+            foreach ( $columns as $column ) {
+                $query = "SELECT * FROM {$table} WHERE {$column} = :word";
+                echo $query;
+                if ( !is_null($this->selectOne($query, [ 'word' => $word ])) ) {
+                    $this->insertIntoTranslated($column, $word, $word);
+
+                    return $this;
+                }
+            }
+        }
 
         return $this;
     }
@@ -429,7 +466,8 @@ class Searcher extends Str
                                 case ">":
                                 case "<":
                                 case "LIKE":
-                                    $innerWhere[] = "{$column} {$item['type']} {$item['search']}";
+                                    $innerWhere[] =
+                                        "{$column} {$item['type']} {$this->prepareStringForSQL($item['search'])}";
                                     break;
                                 case "BETWEEN":
                                     $innerWhere[] =
@@ -449,6 +487,18 @@ class Searcher extends Str
         $this->sql = "({$query})";
 
         return $this;
+    }
+
+    /**
+     * Prepares a string to correct form for SQL
+     *
+     * @param $string
+     *
+     * @return int|string
+     */
+    private function prepareStringForSQL($string)
+    {
+        return ( is_numeric($string) ) ? $string : "'" . $string . "'";
     }
 
     /**
