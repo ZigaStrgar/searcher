@@ -276,7 +276,6 @@ class Searcher extends Str
         foreach ( $tables as $table => $columns ) {
             foreach ( $columns as $column ) {
                 $query = "SELECT * FROM {$table} WHERE {$column} = :word";
-                echo $query;
                 if ( !is_null($this->selectOne($query, [ 'word' => $word ])) ) {
                     $this->insertIntoTranslated($column, $word, $word);
 
