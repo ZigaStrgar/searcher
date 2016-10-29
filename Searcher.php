@@ -233,13 +233,6 @@ class Searcher extends Str
     {
         $words = $this->setupWords($string);
 
-        if ( count($words) == 1 && strpos(array_keys(words)[0], " ") === false ) {
-            $this->oneWordSearch(array_keys($words)[0]);
-            if ( count($this->translated) > 0 ) {
-                return $this;
-            }
-        }
-
         $search = $this->config['search'];
         foreach ( $search['tables'] as $table => $properties ) {
             $table_name = $search['prefix'] . $table;
@@ -254,6 +247,13 @@ class Searcher extends Str
                         break;
                     }
                 }
+            }
+        }
+
+        if ( count($words) == 1 && strpos(array_keys(words)[0], " ") === false && count($this->translated) == 0 ) {
+            $this->oneWordSearch(array_keys($words)[0]);
+            if ( count($this->translated) > 0 ) {
+                return $this;
             }
         }
 
