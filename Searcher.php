@@ -1,4 +1,8 @@
 <?php
+use phpFastCache\CacheManager;
+
+require './vendor/autoload.php';
+
 error_reporting(E_ERROR);
 require_once 'Str.php';
 
@@ -10,6 +14,13 @@ class Searcher extends Str
      * @var PDO
      */
     protected $db;
+
+    /**
+     * It stores the CacheManager instance with correct setup for caching.
+     *
+     * @var CacheManager
+     */
+    protected $cache;
 
     /**
      * Configuration array, including database connection, agency and "special breadcrumbs".
@@ -79,6 +90,11 @@ class Searcher extends Str
             'enabled' => true,
             'table'   => 'searcher_logs'
         ],
+        'cache'           => [
+            'enabled'    => true,
+            'driver'     => 'memcached',
+            'expiration' => 60,
+        ],
         'price'           => [
             'regex'      => '(e(u|v)r|e|€)',
             'validation' => [ 'e', 'evr', 'eur', '€' ],
@@ -135,7 +151,8 @@ class Searcher extends Str
     public function __construct($search, $configuration = [])
     {
         $this->config = array_merge($this->config, $configuration);
-        $this->configureDatabaseConnection()->configureAgencySql()->fillVariations()->search($search)->log($search);
+        $this->configureDatabaseConnection()->configureCacheInstance()->configureAgencySql()->fillVariations();
+        $this->search($search)->log($search);
     }
 
     /**
@@ -153,6 +170,24 @@ class Searcher extends Str
         $this->db = new PDO($dsn, $config['DB_USER'], $config['DB_PASS']);
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+        return $this;
+    }
+
+    /**
+     * It configures the Cache instance with correct settings.
+     *
+     * @return $this
+     */
+    private function configureCacheInstance()
+    {
+        $config = $this->config['cache'];
+
+        if ( !$config['enabled'] || empty( $config['driver'] ) ) {
+            return $this;
+        }
+
+        $this->cache = CacheManager::getInstance($config['driver']);
 
         return $this;
     }
@@ -238,10 +273,10 @@ class Searcher extends Str
             $table_name = $search['prefix'] . $table;
             foreach ( $words as $word => $_ ) {
                 $params = $this->prepareParentalData($properties);
-                $result = $this->getWordIdentifierReplacement($table_name, $word, $params);
+                $result = $this->getDataForWord($word, $table_name, $params, $properties);
                 if ( !empty( $result['id'] ) ) {
-                    list( $column, $type, $operation ) = $this->prepareConfigData($properties, $result, $table);
-                    $this->insertIntoTranslated($column, $word, $result['id'], $type, $operation);
+                    list( $id, $column, $text, $type, $operation ) = array_values($result);
+                    $this->insertIntoTranslated($column, $text, $id, $type, $operation);
                     unset( $words[$word] );
                     if ( !isset( $properties['breakable'] ) || $properties['breakable'] == true ) {
                         break;
@@ -250,7 +285,7 @@ class Searcher extends Str
             }
         }
 
-        if ( count($words) == 1 && strpos(array_keys(words)[0], " ") === false && count($this->translated) == 0 ) {
+        if ( count($words) == 1 && strpos(array_keys($words)[0], " ") === false && count($this->translated) == 0 ) {
             $this->oneWordSearch(array_keys($words)[0]);
             if ( count($this->translated) > 0 ) {
                 return $this;
@@ -260,6 +295,28 @@ class Searcher extends Str
         $this->leftOvers($words);
 
         return $this;
+    }
+
+    /**
+     * Main function which looks for cache items and if not found or active uses database to fetch an item.
+     *
+     * @param $word       Unique identifier for cache item
+     * @param $table      Table where to look
+     * @param $params     All additional parameters for recursive lookup
+     * @param $properties All additional properties for column, type and operation building
+     *
+     * @return mixed
+     */
+    private function getDataForWord($word, $table, $params, $properties)
+    {
+        if ( $this->config['cache']['enabled'] && $this->cache->hasItem($word) ) {
+            $item = $this->cache->getItem($word);
+            if ( !is_null($item->get()) ) {
+                return json_decode($item->get(), true);
+            }
+        }
+
+        return $this->getWordIdentifierReplacement($table, $word, $params, $properties);
     }
 
     /**
@@ -374,7 +431,7 @@ class Searcher extends Str
         $type      = $this->prepareType($properties);
         $operation = $this->prepareOperation($properties);
 
-        return [ $column, $type, $operation ];
+        return [ 'column' => $column, 'type' => $type, 'operation' => $operation ];
     }
 
     /**
@@ -551,7 +608,7 @@ class Searcher extends Str
      *
      * @return mixed
      */
-    private function getWordIdentifierReplacement($table, $part, $additional = [])
+    private function getWordIdentifierReplacement($table, $part, $additional = [], $properties = [])
     {
         if ( strlen($part) > 0 ) {
             $additionalSql = implode(" AND ", array_map(function($key) {
@@ -562,12 +619,24 @@ class Searcher extends Str
 
             $word = $this->modifyWord($part);
 
-            $query  =
-                "SELECT cr_id as id, `column` FROM cr_search WHERE search LIKE :word AND cr_table = :table {$additionalSql} ORDER BY CHAR_LENGTH(search) ASC LIMIT 1";
+            $query =
+                "SELECT cr_id as id, `column`, text FROM cr_search WHERE search LIKE :word AND cr_table = :table {$additionalSql} ORDER BY CHAR_LENGTH(search) ASC LIMIT 1";
+
             $result = $this->selectOne($query, array_merge([
                 'word'  => "$word",
                 'table' => $table
             ], $additional));
+
+            $result =
+                array_merge($result, $this->prepareConfigData($properties, $result, str_replace("cr_", "", $table)));
+
+            if ( $this->config['cache']['enabled'] && !empty( $result ) ) {
+                $instance = $this->cache->getItem($part);
+
+                $instance->set(json_encode($result))->expiresAfter(date() + $this->config['cache']['expiration'] * 60);
+
+                $this->cache->save($instance);
+            }
 
             return $result;
         }
