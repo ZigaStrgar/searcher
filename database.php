@@ -8,4 +8,4 @@ define('DB_PASS', '');
 define('DB_NAME', 'searcher');
 
 $connection = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-mysqli_query($connection, "SET NAMES UTF8;");
+mysqli_query($connection, 'SET NAMES UTF8;');
