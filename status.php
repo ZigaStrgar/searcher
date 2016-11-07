@@ -3,17 +3,21 @@
 include_once 'database.php';
 
 $connected =
-    ( isset( $_GET['connected'] ) && $_GET['connected'] == 'true' ) ? "cr_table IS NOT NULL AND cr_id IS NOT NULL" : "cr_table IS NULL AND cr_id IS NULL";
+    (isset($_GET['connected']) && $_GET['connected'] == 'true') ? 'cr_table IS NOT NULL AND cr_id IS NOT NULL' : 'cr_table IS NULL AND cr_id IS NULL';
 
-$active   = mysqli_query($connection, "SELECT * FROM cr_keywords WHERE active = 1 AND $connected ORDER BY id DESC");
-$inactive = mysqli_query($connection, "SELECT * FROM cr_keywords WHERE active = 0 ORDER BY id DESC");
+$active = mysqli_query($connection, "SELECT * FROM cr_keywords WHERE active = 1 AND $connected ORDER BY id DESC");
+$inactive = mysqli_query($connection, 'SELECT * FROM cr_keywords WHERE active = 0 ORDER BY id DESC');
 
 include_once 'header.php'; ?>
-<?php if ( isset( $_GET['connected'] ) && $_GET['connected'] == 'true' ) { ?>
+<?php if (isset($_GET['connected']) && $_GET['connected'] == 'true') {
+    ?>
     <a href="status.php" class="btn btn-primary">Skrij povezane zapise</a>
-<?php } else { ?>
+<?php 
+} else {
+    ?>
     <a href="status.php?connected=true" class="btn btn-primary">Prikaži povezane zapise</a>
-<?php } ?>
+<?php 
+} ?>
     <br>
     <h2>Deaktivacija besed</h2>
     <p class="help-block">Izbereš lahko več zapisov na enkrat!</p>
@@ -23,10 +27,11 @@ include_once 'header.php'; ?>
                 <label for="">Besede</label>
                 <select class="form-control identifiers" name="deactivate[]" multiple="multiple">
                     <?php
-                    while ( $word = mysqli_fetch_assoc($active) ) {
+                    while ($word = mysqli_fetch_assoc($active)) {
                         ?>
                         <option value="<?= $word['id']; ?>"><?= $word['text'] ?></option>
                         <?php
+
                     }
                     ?>
                 </select>
@@ -47,10 +52,11 @@ include_once 'header.php'; ?>
                 <label for="">Besede</label>
                 <select class="form-control identifiers" name="activate[]" multiple="multiple">
                     <?php
-                    while ( $word = mysqli_fetch_assoc($inactive) ) {
+                    while ($word = mysqli_fetch_assoc($inactive)) {
                         ?>
                         <option value="<?= $word['id']; ?>"><?= $word['text'] ?> - <?= $word['cr_table'] ?></option>
                         <?php
+
                     }
                     ?>
                 </select>

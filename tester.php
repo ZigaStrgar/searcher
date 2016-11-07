@@ -2,9 +2,9 @@
 
 require_once 'Searcher.php';
 
-$init1  = time();
-$query  =
-    ( isset( $_GET['query'] ) ) ? $_GET['query'] : "toplarna oddaja 3 sobno stanovanje v ljubljani od 640 - 660€ Bežigrad balkon";
+$init1 = time();
+$query =
+    (isset($_GET['query'])) ? $_GET['query'] : 'toplarna oddaja 3 sobno stanovanje v ljubljani od 640 - 660€ Bežigrad balkon';
 $search = new Searcher($query);
 ?>
     <form action="" method="GET">
@@ -13,10 +13,10 @@ $search = new Searcher($query);
     </form>
 <?php
 
-echo "<pre>";
-echo $search->getSql() . "<br />";
+echo '<pre>';
+echo $search->getSql().'<br />';
 print_r($search->getResults(true));
-echo "</pre>";
+echo '</pre>';
 
 $total = time() - $init1;
 

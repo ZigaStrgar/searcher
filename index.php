@@ -3,9 +3,9 @@
 include_once 'database.php';
 
 $misses =
-    mysqli_query($connection, "SELECT * FROM cr_keywords WHERE cr_table IS NULL AND cr_id IS NULL AND active = 1 ORDER BY id DESC");
-$words  = mysqli_query($connection, "SELECT * FROM cr_search");
-$words2 = mysqli_query($connection, "SELECT * FROM cr_search");
+    mysqli_query($connection, 'SELECT * FROM cr_keywords WHERE cr_table IS NULL AND cr_id IS NULL AND active = 1 ORDER BY id DESC');
+$words = mysqli_query($connection, 'SELECT * FROM cr_search');
+$words2 = mysqli_query($connection, 'SELECT * FROM cr_search');
 
 include_once 'header.php'; ?>
 <h2>Povezava za iskanje</h2>
@@ -15,10 +15,11 @@ include_once 'header.php'; ?>
             <label for="">Šment, teh pa ni našlo!</label>
             <select class="form-control identifiers" name="typo[]" multiple="multiple">
                 <?php
-                while ( $miss = mysqli_fetch_assoc($misses) ) {
+                while ($miss = mysqli_fetch_assoc($misses)) {
                     ?>
                     <option value="<?= $miss['id']; ?>"><?= $miss['text'] ?></option>
                     <?php
+
                 }
                 ?>
             </select>
@@ -30,10 +31,11 @@ include_once 'header.php'; ?>
             <select class="form-control identifiers" name="identifier">
                 <option disabled selected></option>
                 <?php
-                while ( $word = mysqli_fetch_assoc($words) ) {
+                while ($word = mysqli_fetch_assoc($words)) {
                     ?>
                     <option value="<?= $word['id']; ?>"><?= $word['text'] ?> - <?= $word['cr_table'] ?></option>
                     <?php
+
                 }
                 ?>
             </select>
@@ -61,10 +63,11 @@ include_once 'header.php'; ?>
             <select class="form-control identifiers" name="identifier">
                 <option disabled selected></option>
                 <?php
-                while ( $word = mysqli_fetch_assoc($words2) ) {
+                while ($word = mysqli_fetch_assoc($words2)) {
                     ?>
                     <option value="<?= $word['id']; ?>"><?= $word['text'] ?> - <?= $word['cr_table'] ?></option>
                     <?php
+
                 }
                 ?>
             </select>
