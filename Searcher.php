@@ -36,13 +36,13 @@ class Searcher extends Str
                     'breakable' => false,
                     'multiple'  => 'OR'
                 ],
-                'region'       => [],
-                'city'         => [
-                    'additional' => [ 'region' => 'region' ],
-                ],
                 'district'     => [
                     'additional' => [ 'region' => 'region', 'city' => 'city' ],
                 ],
+                'city'         => [
+                    'additional' => [ 'region' => 'region' ],
+                ],
+                'region'       => [],
                 'zip_postal'   => [],
             ],
             'one_word' => [
@@ -857,7 +857,8 @@ class Searcher extends Str
         $string = $this->searchify($string);
 
         foreach ( $this->variations as $key => $val ) {
-            $string = str_replace($val, $key, $string);
+            if ( preg_match('/\b' . $val . '\b/', $string) )
+                $string = str_replace($val, $key, $string);
         }
 
         return $string;
