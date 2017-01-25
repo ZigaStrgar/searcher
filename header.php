@@ -30,6 +30,7 @@ include_once 'database.php';
                     <li><a href="index.php">Dodajanje in kreiranje povezav</a></li>
                     <li><a href="status.php">Deaktivacija in aktivacija besed</a></li>
                     <li><a href="logs.php">Poglej kaj se išče</a></li>
+                    <li><a href="looked_for.php">Kaj sem našel</a></li>
                 </ul>
             </div>
         </div>
